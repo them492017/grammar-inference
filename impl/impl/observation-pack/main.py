@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import NewType, Optional, Any
 import heapq
+from math import floor
 
 Alphabet = NewType("Alphabet", str)  # could be literal if known
 
@@ -29,14 +30,14 @@ class Teacher:  # TODO: implement teacher
         Compares hypothesis, and returns a counterexample if they are inequivalent,
         else returns None
         """
+        self.counterexample_count += 1
         match self.counterexample_count:
-            case 0:
-                return "baaaaaab"
             case 1:
+                return "baaaaaab"
+            case 2:
                 return "baaaaaab"
             case _:
                 return None
-        self.counterexample_count += 1
 
 
 class Node:
@@ -76,8 +77,28 @@ class Node:
             assert self.children[0]
             assert self.children[1]
             self.children[0].print_tree(level+1)
-            print(f"{"\t" * level}-> <{self.discriminator}>")
+            print(f"{" " * 4 * level}-> <{self.discriminator}>")
             self.children[1].print_tree(level+1)
+
+    def print_tree_debug(self, level=0, property="incoming"):
+        if property == "incoming":
+            debug_info = self.incoming
+        elif property == "id":
+            debug_info = self
+        else:
+            debug_info = ""
+
+        if self.is_leaf():
+            if self.state is None:
+                print(f"{" " * 4 * level}-> <None@{self} {debug_info}>")
+            else:
+                print(f"{" " * 4 * level}-> <q{self.state.id} {debug_info}>")
+        else:
+            assert self.children[0]
+            assert self.children[1]
+            self.children[0].print_tree_debug(level+1, property)
+            print(f"{" " * 4 * level}-> <{self.discriminator} {debug_info}>")
+            self.children[1].print_tree_debug(level+1, property)
 
     @classmethod
     def make_leaf(cls, state: Optional[State]) -> Node:
@@ -106,6 +127,7 @@ class Node:
         self.children[0] = Node.make_leaf(None)
         self.children[1] = Node.make_leaf(None)
         self.discriminator = discriminator
+        self.state = None
 
         for o, child in enumerate(self.children):
             if child is not None:
@@ -160,6 +182,24 @@ class Transition:
 
         return id(self.tgt_node) < id(t.tgt_node)
 
+    def __repr__(self) -> str:
+        if self.tgt_state is not None:
+            return f"<Transition aseq={self.aseq} tgt_state={self.tgt_state.id}>"
+        else:
+            return f"<Transition aseq={self.aseq} tgt_state={{}}>"
+
+    """
+    @property
+    def tgt_node(self) -> Node:
+        return self._tgt_node
+
+    @tgt_node.setter
+    def tgt_node(self, target: Node) -> None:
+        self.tgt_node.incoming.remove(self)
+        self._tgt_node = target
+        target.incoming.add(self)
+    """
+
     @property
     def tgt_state(self) -> Optional[State]:
         return self.tgt_node.state
@@ -201,13 +241,12 @@ class Hypothesis:
         print(f"Initial state: q{self.start.id}")
         print(f"Final states: {list(map(lambda state: f"q{state.id}", list(self.final)))}")
         for state in list(self.states):
-            print(f"State: q{state.id}")
+            print(f"State: q{state.id} (aseq = {state.aseq})")
             for a, transition in state.trans.items():
                 assert isinstance(transition.tgt_state, State)
                 print(f"\t-{a}-> q{transition.tgt_state.id}")
 
     def add_state(self):
-        # TODO: some states have no transactions but should have a default one
         new_state = State(self.next_state)
         self.next_state += 1
         self.states.add(new_state)
@@ -226,12 +265,12 @@ class Hypothesis:
 
         alphabet = [Alphabet("a"), Alphabet("b")]  # TODO: make this global
         for a in alphabet:
-            new_state.trans[a] = Transition(new_state, root, a)
+            new_state.trans[a] = Transition(new_state, root, t.aseq + a)
             self.open_transitions.append(new_state.trans[a])
 
         print(new_state.trans)
 
-        return new_state  # TODO: why is t not even used here???
+        return new_state
 
     def state_of(self, u: str) -> State:
         """
@@ -247,16 +286,16 @@ class Hypothesis:
 
         return curr
 
-    # def evaluate(self, v: str, start: Optional[State] = None):
-    #     curr = start or self.start
-    #
-    #     for c in v:
-    #         curr = curr.trans[Alphabet(c)].tgt_state
-    #
-    #         if curr is None:
-    #             raise ValueError("Null state reached. Hypothesis is not closed.")
-    #
-    #     return curr in self.final
+    def evaluate(self, v: str, start: Optional[State] = None):
+        curr = start or self.start
+    
+        for c in v:
+            curr = curr.trans[Alphabet(c)].tgt_state
+    
+            if curr is None:
+                raise ValueError("Null state reached. Hypothesis is not closed.")
+    
+        return curr in self.final
 
 
 def link(node: Node, state: State) -> None:
@@ -290,31 +329,28 @@ class ObservationPack:
         """
         Closes all open transitions in the hypothesis
         """
+        print("Starting CloseTransitions")
+        print("Currently, the open transitions are", self.hypothesis.open_transitions)
         transitions_to_new: list[Transition] = []  # this should be a pqueue / heap with len(aseq)
-        # count = 0
         while True:
-            # count += 1
-            # if count > 15: return print("Terminating early from outer")
             while len(self.hypothesis.open_transitions) > 0:
-                # count += 1
-                # if count > 15: return print("Terminating early from inner")
-                t = self.hypothesis.open_transitions.pop()
-                if t.is_open():  # sometimes an open transition can be closed by a prior operation
-                    target = t.tgt_node.sift(self.teacher, t.aseq)
-                    t.tgt_node = target
+                t = self.hypothesis.open_transitions.pop(0)  # TODO: pop from end for efficiency
+                print("Closing", t)
+                assert t.is_open()
 
-                    if target.is_leaf() and target.state is None:
-                        # transition discovered a new state
-                        print("New state discovered")
-                        print(target)
-                        self.dtree.print_tree()
-                        heapq.heappush(transitions_to_new, t)
+                target = t.tgt_node.sift(self.teacher, t.aseq)
+                t.set_target(target)
 
-            # TODO: fix bug where more and more states are created
-            print(f"Num transitions to new: {len(transitions_to_new)}")
+                print(f"Transition with aseq={t.aseq} has new target {target}")
+
+                if target.is_leaf() and target.state is None:
+                    # transition discovered a new state
+                    print("New state discovered at", target)
+                    heapq.heappush(transitions_to_new, t)
+
             if len(transitions_to_new) > 0:
                 t = transitions_to_new[0]
-                print(t.tgt_node)
+                print("Making new state for", t)
                 # make t into a tree transition
                 q = self.hypothesis.make_tree(self.dtree, t)
                 # remove all transitions from transitions_to_new with same aseq
@@ -326,10 +362,6 @@ class ObservationPack:
                 # link t to the correct state
                 link(t.tgt_node, q)
 
-            # print("Finished making new states")
-            # self.dtree.print_tree()
-            # return  # TEMPORARY
-
             if len(transitions_to_new) == len(self.hypothesis.open_transitions) == 0:
                 break
 
@@ -338,24 +370,43 @@ class ObservationPack:
         Given a counterexample w, returns a decomposition (u, a, v) where
         len(a) == 1 and certain properties are satisfied.
         """
-        match self.TEMPORARY:
-            case 0:
-                return "", Alphabet("b"), "aaaaaab"
-            case 1:
-                return "b", Alphabet("a"), "aaaaab"
-            case _:
-                raise ValueError("Too many counterexamples received for hardcoding")
-        # TODO: actually implement
-        return "", Alphabet(w[0]), w[1:]
+        # define prefix mapping
+        def prefix_mapping(s: str, i: int) -> str:
+            assert 0 <= i <= len(s)
+            return self.hypothesis.state_of(s[:i]).aseq + s[i:]
+
+        # define alpha
+        def alpha(i: int) -> bool:
+            return self.teacher.is_member(prefix_mapping(w, i)) == self.hypothesis.evaluate(w)
+
+        # binary search (or a variant of it)
+        i = self.binary_search(alpha, len(w))
+
+        return w[:i], Alphabet(w[i]), w[i+1:]
+
+    def binary_search(self, alpha: Callable, max: int) -> int:
+        low, high = 0, max
+
+        while high - low > 1:
+            mid = (low + high) // 2
+
+            if alpha(mid) == 0:
+                low = mid
+            else:
+                high = mid
+
+        return low
 
     def refine(self, counterexample: str) -> None:
         u, a, v = self.decompose(counterexample)
+        print(f"Decomposed {counterexample} into {(u, a, v)}")
         self.split(u, a, v)
         self.close_transitions()
 
     def split(self, u: str, a: Alphabet, v: str) -> None:
         q = self.hypothesis.state_of(u)
         t = q.trans[a]
+        print(f"Splitting with q_pred=q{q.id}, transition {t}")
 
         old_state = t.tgt_state
         new_state = self.hypothesis.make_tree(self.dtree, t)
@@ -365,20 +416,22 @@ class ObservationPack:
         assert old_state.node is not None
         leaf0, leaf1 = old_state.node.split_leaf(v)
 
+        self.hypothesis.open_transitions += list(old_state.node.incoming)
+
+        print(f"Membership query for {old_state.aseq}+{v}")
         if self.teacher.is_member(old_state.aseq + v):
+            link(leaf1, old_state)
+            link(leaf0, new_state)
+        else:
             link(leaf0, old_state)
             link(leaf1, new_state)
-        else:
-            link(leaf0, new_state)
-            link(leaf1, old_state)
-
-        self.hypothesis.open_transitions += old_state.node.incoming
 
     def learn(self) -> tuple[Hypothesis, Node]:
         self.hypothesis.print_hypothesis()
         self.dtree.print_tree()
 
         while (v := self.teacher.get_counterexample(self.hypothesis)) is not None:
+            print("Found counterexample", v)
             self.refine(v)
 
             self.hypothesis.print_hypothesis()
@@ -390,14 +443,14 @@ class ObservationPack:
 def main():
     teacher = Teacher()
 
-    op = ObservationPack(teacher)
-    op.hypothesis.print_hypothesis()
-    op.dtree.print_tree()
-
-    # hypothesis, tree = ObservationPack(teacher).learn()
-    #
-    # hypothesis.print_hypothesis()
-    # tree.print_tree()
+    hypothesis, tree = ObservationPack(teacher).learn()
+    
+    print("=" * 30)
+    hypothesis.print_hypothesis()
+    print("=" * 20)
+    tree.print_tree()
+    # print("=" * 20)
+    # tree.print_tree_debug()
 
 
 if __name__ == "__main__":
