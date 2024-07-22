@@ -1,49 +1,20 @@
 from __future__ import annotations
-from typing import NewType, Optional, Any
+from typing import NewType, Optional, Any, Callable
+from sys import argv
+from time import perf_counter
+from pprint import pprint
+from math import log, floor
 import heapq
-from math import floor
+
+from teacher.teacher import Teacher
 
 Alphabet = NewType("Alphabet", str)  # could be literal if known
-
-
-class Teacher:  # TODO: implement teacher
-    def __init__(self) -> None:
-        self.counterexample_count = 0
-
-    def is_member(self, u: str) -> bool:
-        """
-        Performs a membership query on u
-        """
-        a_count, b_count = 0, 0
-        for c in u:
-            if c == "a":
-                a_count += 1
-            elif c == "b":
-                b_count += 1
-            else:
-                raise ValueError(f"String {u} contains invalid character")
-
-        return a_count % 2 == b_count % 2 == 0
-
-    def get_counterexample(self, hypothesis: Hypothesis) -> Optional[str]:
-        """
-        Compares hypothesis, and returns a counterexample if they are inequivalent,
-        else returns None
-        """
-        self.counterexample_count += 1
-        match self.counterexample_count:
-            case 1:
-                return "baaaaaab"
-            case 2:
-                return "baaaaaab"
-            case _:
-                return None
+alphabet: list[Alphabet] = [Alphabet("a"), Alphabet("b")]
 
 
 class Node:
     """
     A node class
-    TODO: write which properties are used for leaves and inner nodes
     """
     children: list[Optional[Node]]  # maybe should be Optioanl[list[Node]]
     parent: Optional[Node]
@@ -67,38 +38,38 @@ class Node:
                 child.parent = self
                 child.signature = self.signature | {(discriminator, o)}
 
-    def print_tree(self, level=0):
-        if self.is_leaf():
-            if self.state is None:
-                print(f"{" " * 4 * level}-> <None@{self}>")
-            else:
-                print(f"{" " * 4 * level}-> <q{self.state.id}>")
-        else:
-            assert self.children[0]
-            assert self.children[1]
-            self.children[0].print_tree(level+1)
-            print(f"{" " * 4 * level}-> <{self.discriminator}>")
-            self.children[1].print_tree(level+1)
-
-    def print_tree_debug(self, level=0, property="incoming"):
+    def print_tree(self, child: int = -1, level: int = 0, property: str = ""):
+        """
+        A method that outputs a discrimination tree rooted at `self`. Adapted from
+        https://stackoverflow.com/questions/34012886/print-binary-tree-level-by-level-in-python
+        """
         if property == "incoming":
-            debug_info = self.incoming
+            debug_info = " " + str(self.incoming)
         elif property == "id":
-            debug_info = self
+            debug_info = " " + str(self)
+        elif property == "state":
+            debug_info = " " + str(self.state)
         else:
             debug_info = ""
 
+        if child == 1:
+            arrow = "=>"
+        elif child == 0:
+            arrow = "->"
+        else:
+            arrow = "->"
+
         if self.is_leaf():
             if self.state is None:
-                print(f"{" " * 4 * level}-> <None@{self} {debug_info}>")
+                print(f"{" " * 4 * level}{arrow} <None@{self}{debug_info}>")
             else:
-                print(f"{" " * 4 * level}-> <q{self.state.id} {debug_info}>")
+                print(f"{" " * 4 * level}{arrow} <q{self.state.id}{debug_info}>")
         else:
             assert self.children[0]
             assert self.children[1]
-            self.children[0].print_tree_debug(level+1, property)
-            print(f"{" " * 4 * level}-> <{self.discriminator} {debug_info}>")
-            self.children[1].print_tree_debug(level+1, property)
+            self.children[0].print_tree(0, level+1, property)
+            print(f"{" " * 4 * level}{arrow} <{self.discriminator}{debug_info}>")
+            self.children[1].print_tree(1, level+1, property)
 
     @classmethod
     def make_leaf(cls, state: Optional[State]) -> Node:
@@ -232,7 +203,6 @@ class Hypothesis:
         self.start = self.add_state()
         self.open_transitions = []
 
-        alphabet = [Alphabet("a"), Alphabet("b")]  # TODO: make this global
         for a in alphabet:
             self.start.trans[a] = Transition(self.start, root, a)
             self.open_transitions.append(self.start.trans[a])
@@ -246,6 +216,22 @@ class Hypothesis:
                 assert isinstance(transition.tgt_state, State)
                 print(f"\t-{a}-> q{transition.tgt_state.id}")
 
+    def to_grammar(self) -> tuple[dict[str, list[list[str]]], str]:
+        # TODO: store hypothesis in this form so it doesnt have to be rebuilt each iteration
+        #       Actually, the teacher copies the grammar so the complexity would not change...
+        grammar: dict[str, list[list[str]]] = {}
+        for state in self.states:
+            state_name = f"q{state.id}"
+            grammar[state_name] = [
+                [str(a), f"q{transition.tgt_state.id}"]
+                for a, transition in state.trans.items()
+                if transition.tgt_state is not None
+            ]
+            if state in self.final:
+                grammar[state_name].append([])
+
+        return grammar, f"q{self.start.id}"
+
     def add_state(self):
         new_state = State(self.next_state)
         self.next_state += 1
@@ -257,13 +243,9 @@ class Hypothesis:
         Converts t into a tree transition. This requires a new state to be created
         which is returned.
         """
-        # assert t.tgt_node.is_leaf()
-        # assert t.tgt_state is None
-
         new_state = self.add_state()
         new_state.aseq = t.aseq
 
-        alphabet = [Alphabet("a"), Alphabet("b")]  # TODO: make this global
         for a in alphabet:
             new_state.trans[a] = Transition(new_state, root, t.aseq + a)
             self.open_transitions.append(new_state.trans[a])
@@ -288,13 +270,13 @@ class Hypothesis:
 
     def evaluate(self, v: str, start: Optional[State] = None):
         curr = start or self.start
-    
+
         for c in v:
             curr = curr.trans[Alphabet(c)].tgt_state
-    
+
             if curr is None:
                 raise ValueError("Null state reached. Hypothesis is not closed.")
-    
+
         return curr in self.final
 
 
@@ -309,7 +291,6 @@ class ObservationPack:
     dtree: Node
 
     def __init__(self, teacher: Teacher):
-        self.TEMPORARY = 0
         self.teacher = teacher
 
         t0, t1 = Node.make_leaf(None), Node.make_leaf(None)
@@ -331,6 +312,7 @@ class ObservationPack:
         """
         print("Starting CloseTransitions")
         print("Currently, the open transitions are", self.hypothesis.open_transitions)
+        self.dtree.print_tree(property="id")
         transitions_to_new: list[Transition] = []  # this should be a pqueue / heap with len(aseq)
         while True:
             while len(self.hypothesis.open_transitions) > 0:
@@ -338,10 +320,13 @@ class ObservationPack:
                 print("Closing", t)
                 assert t.is_open()
 
+                print("Sifting transition")
                 target = t.tgt_node.sift(self.teacher, t.aseq)
                 t.set_target(target)
 
                 print(f"Transition with aseq={t.aseq} has new target {target}")
+                # print(target.is_leaf(), target)
+                # self.dtree.print_tree_debug(property="state")
 
                 if target.is_leaf() and target.state is None:
                     # transition discovered a new state
@@ -379,14 +364,13 @@ class ObservationPack:
         def alpha(i: int) -> bool:
             return self.teacher.is_member(prefix_mapping(w, i)) == self.hypothesis.evaluate(w)
 
-        # binary search (or a variant of it)
-        i = self.binary_search(alpha, len(w))
+        # binary search (or some variation of it)
+        # i = self.exponential_search(alpha, len(w))
+        i = self.partition_search(alpha, len(w))
 
         return w[:i], Alphabet(w[i]), w[i+1:]
 
-    def binary_search(self, alpha: Callable, max: int) -> int:
-        low, high = 0, max
-
+    def binary_search(self, alpha: Callable[[int], bool], high: int, low: int = 0) -> int:
         while high - low > 1:
             mid = (low + high) // 2
 
@@ -394,6 +378,54 @@ class ObservationPack:
                 low = mid
             else:
                 high = mid
+
+        return low
+
+    def exponential_search(self, alpha: Callable[[int], bool], high: int) -> int:
+        range_len = 1
+        low = 0
+        found = False
+
+        while not found and high - range_len > 0:
+            print(low, high, high - range_len)
+            if alpha(high - range_len) == 0:
+                low = high - range_len
+                found = True
+            else:
+                high -= range_len
+                range_len *= 2
+
+        return self.binary_search(alpha, high, low)
+
+    def partition_search(self, alpha: Callable[[int], bool], max: int) -> int:
+        step = floor(max / log(max, 2))
+        low, high = 0, max
+        found = False
+
+        while not found and high - step > low:
+            if alpha(high - step) == 0:
+                low = high - step
+                found = True
+                break
+            else:
+                high = high - step
+
+        return self.rs_eager_search(alpha, high, low)
+
+    def rs_eager_search(self, alpha: Callable[[int], bool], high: int, low: int = 0) -> int:
+        def beta(i: int) -> int:
+            # TODO: could memoise previously computed alpha values
+            return alpha(i) + alpha(i+1)
+
+        while high > low:
+            mid = (low + high) // 2
+
+            if beta(mid) == 1:  # alpha(mid) != alpha(mid+1)
+                return mid
+            elif beta(mid) == 0:  # beta(mid+1) <= 1
+                low = mid + 1
+            else:  # beta(mid - 1) >= 1
+                high = mid - 1
 
         return low
 
@@ -406,51 +438,79 @@ class ObservationPack:
     def split(self, u: str, a: Alphabet, v: str) -> None:
         q = self.hypothesis.state_of(u)
         t = q.trans[a]
-        print(f"Splitting with q_pred=q{q.id}, transition {t}")
+        print(f"Running split with q_pred=q{q.id}, transition {t}")
 
         old_state = t.tgt_state
         new_state = self.hypothesis.make_tree(self.dtree, t)
 
+        if self.teacher.is_member(new_state.aseq):
+            self.hypothesis.final.add(new_state)
+
         # TODO: justify asserts
         assert old_state is not None
         assert old_state.node is not None
+        print(f"Splitting q{old_state.id}'s node with discriminator {v}")
         leaf0, leaf1 = old_state.node.split_leaf(v)
 
         self.hypothesis.open_transitions += list(old_state.node.incoming)
 
-        print(f"Membership query for {old_state.aseq}+{v}")
+        # TODO: eliminate this query since the result is found in call to self.decompose
         if self.teacher.is_member(old_state.aseq + v):
+            # old state is 1-child
             link(leaf1, old_state)
             link(leaf0, new_state)
         else:
+            # old state is 0-child
             link(leaf0, old_state)
             link(leaf1, new_state)
 
-    def learn(self) -> tuple[Hypothesis, Node]:
+    def learn(self, max_iterations: int = -1) -> tuple[Hypothesis, Node]:
         self.hypothesis.print_hypothesis()
         self.dtree.print_tree()
 
-        while (v := self.teacher.get_counterexample(self.hypothesis)) is not None:
-            print("Found counterexample", v)
-            self.refine(v)
+        iterations = 0
+        while not (equiv := self.teacher.is_equivalent(*self.hypothesis.to_grammar()))[0]:
+            if max_iterations != -1 and iterations >= max_iterations:
+                print("Reached maximum iterations")
+                return self.hypothesis, self.dtree
 
-            self.hypothesis.print_hypothesis()
+            counterexample = equiv[1]
+            assert counterexample is not None
+            print("Found counterexample", counterexample)
+            self.refine(counterexample)
+
+            # self.hypothesis.print_hypothesis()
+            pprint(self.hypothesis.to_grammar())
             self.dtree.print_tree()
+            iterations += 1
 
+        print("=" * 40)
+        print(f"No counterexample found! Learning complete after {iterations} iterations.")
         return self.hypothesis, self.dtree
 
 
 def main():
-    teacher = Teacher()
+    if len(argv) == 2:
+        regex = argv[1]
+    else:
+        # Default regex: accepts strings with even num a's and even num b's
+        regex = r"((b(aa)*b)|((a|b(aa)*ab)((bb)|(ba(aa)*ab))*(a|ba(aa)*b)))*"
 
+    teacher = Teacher(regex, 0.01, 0.01)
+
+    start_time = perf_counter()
     hypothesis, tree = ObservationPack(teacher).learn()
-    
-    print("=" * 30)
+    end_time = perf_counter()
+
+    print("=" * 40)
     hypothesis.print_hypothesis()
-    print("=" * 20)
+    print("=" * 40)
     tree.print_tree()
-    # print("=" * 20)
-    # tree.print_tree_debug()
+    print("=" * 40)
+    pprint(hypothesis.to_grammar())
+    print("=" * 40)
+    print(f"Learning completed in {end_time - start_time} seconds")
+    print("=" * 40)
 
 
 if __name__ == "__main__":
