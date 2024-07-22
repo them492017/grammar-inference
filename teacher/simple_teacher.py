@@ -10,6 +10,12 @@ class HypothesisProtocol(Protocol):
 
 
 class SimpleTeacher:
+    """
+    A simple teacher class that uses the built in evaluation capabilities
+    of the Hypothesis class and applies it to uniformly random strings up to
+    a certain maximum length.
+    """
+
     alphabet: list[str]
     regex: Pattern[str]
     equivalence_query_counter: int

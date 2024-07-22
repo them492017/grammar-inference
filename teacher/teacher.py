@@ -13,7 +13,12 @@ import cfgremoveepsilon
 random.seed(1)
 
 
-class Teacher:
+class MATeacher:
+    """
+    A teacher class heavily inspired by
+    http://rahul.gopinath.org/post/2024/01/04/lstar-learning-regular-languages/#pac-learning
+    """
+
     def __init__(self, rex, delta=0.1, epsilon=0.1):
         self.g, self.s = rxfuzzer.RegexToGrammar().to_grammar(rex)
         self.parser = earleyparser.EarleyParser(self.g)
@@ -56,7 +61,7 @@ class Teacher:
         gs.remove_epsilon_rules()
         return gs.grammar, start
 
-    def digest_grammar(self, g, s, l, n) -> tuple[int, Any, Any]:
+    def digest_grammar(self, g, s, l) -> tuple[int, Any, Any]:
         if not g[s]:
             return 0, None, None
         g, s = self.fix_epsilon(g, s)
@@ -75,8 +80,8 @@ class Teacher:
         return fuzzer.tree_to_string(st_)
 
     def is_equivalent_for(self, g1, s1, g2, s2, l, n):
-        cnt1, key_node1, ep1 = self.digest_grammar(g1, s1, l, n)
-        cnt2, key_node2, ep2 = self.digest_grammar(g2, s2, l, n)
+        cnt1, key_node1, ep1 = self.digest_grammar(g1, s1, l)
+        cnt2, key_node2, ep2 = self.digest_grammar(g2, s2, l)
         count = 0
 
         str1 = {self.gen_random(key_node1, cnt1) for _ in range(n)}
