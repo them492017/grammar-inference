@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import NewType, Optional, Any, Callable
+from typing import NewType, Optional, Any, Callable, cast
 from sys import argv
 from time import perf_counter
 from pprint import pprint
 from math import log, floor
 import heapq
 
-from teacher.teacher import Teacher
+from teacher.simple_teacher import SimpleTeacher
 
 Alphabet = NewType("Alphabet", str)  # could be literal if known
 alphabet: list[Alphabet] = [Alphabet("a"), Alphabet("b")]
@@ -107,7 +107,7 @@ class Node:
 
         return self.children[0], self.children[1]
 
-    def sift(self, teacher: Teacher, u: str) -> Node:
+    def sift(self, teacher: SimpleTeacher, u: str) -> Node:
         if self.is_leaf():
             return self
 
@@ -268,10 +268,10 @@ class Hypothesis:
 
         return curr
 
-    def evaluate(self, v: str, start: Optional[State] = None):
+    def evaluate(self, u: str, start: Optional[State] = None) -> bool:
         curr = start or self.start
 
-        for c in v:
+        for c in u:
             curr = curr.trans[Alphabet(c)].tgt_state
 
             if curr is None:
@@ -286,11 +286,12 @@ def link(node: Node, state: State) -> None:
 
 
 class ObservationPack:
-    teacher: Teacher
+    # teacher: Teacher
+    teacher: SimpleTeacher
     hypothesis: Hypothesis
     dtree: Node
 
-    def __init__(self, teacher: Teacher):
+    def __init__(self, teacher: SimpleTeacher):
         self.teacher = teacher
 
         t0, t1 = Node.make_leaf(None), Node.make_leaf(None)
@@ -312,7 +313,7 @@ class ObservationPack:
         """
         print("Starting CloseTransitions")
         print("Currently, the open transitions are", self.hypothesis.open_transitions)
-        self.dtree.print_tree(property="id")
+        # self.dtree.print_tree(property="id")
         transitions_to_new: list[Transition] = []  # this should be a pqueue / heap with len(aseq)
         while True:
             while len(self.hypothesis.open_transitions) > 0:
@@ -366,7 +367,7 @@ class ObservationPack:
 
         # binary search (or some variation of it)
         # i = self.exponential_search(alpha, len(w))
-        i = self.partition_search(alpha, len(w))
+        i = self.partition_search(alpha, len(w))  # favours shorter suffixes
 
         return w[:i], Alphabet(w[i]), w[i+1:]
 
@@ -469,7 +470,7 @@ class ObservationPack:
         self.dtree.print_tree()
 
         iterations = 0
-        while not (equiv := self.teacher.is_equivalent(*self.hypothesis.to_grammar()))[0]:
+        while not (equiv := self.teacher.is_equivalent(self.hypothesis))[0]:
             if max_iterations != -1 and iterations >= max_iterations:
                 print("Reached maximum iterations")
                 return self.hypothesis, self.dtree
@@ -496,9 +497,11 @@ def main():
         # Default regex: accepts strings with even num a's and even num b's
         regex = r"((b(aa)*b)|((a|b(aa)*ab)((bb)|(ba(aa)*ab))*(a|ba(aa)*b)))*"
 
-    teacher = Teacher(regex, 0.01, 0.01)
+    # teacher = MATeacher(regex, 0.01, 0.01)
+    teacher = SimpleTeacher(cast(list[str], alphabet), regex, 0.01, 0.01)
 
     start_time = perf_counter()
+    # TODO: should really be running this multiple times and averaging the time
     hypothesis, tree = ObservationPack(teacher).learn()
     end_time = perf_counter()
 
