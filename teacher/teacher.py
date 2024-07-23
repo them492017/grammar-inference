@@ -10,7 +10,7 @@ import cfgrandomsample
 import cfgremoveepsilon
 
 
-random.seed(1)
+# random.seed(1)
 
 
 class MATeacher:
@@ -23,11 +23,13 @@ class MATeacher:
         self.g, self.s = rxfuzzer.RegexToGrammar().to_grammar(rex)
         self.parser = earleyparser.EarleyParser(self.g)
         self.sampler = cfgrandomsample.RandomSampleCFG(self.g)
+        self.membership_query_counter = 0
         self.equivalence_query_counter = 0
         self.delta, self.epsilon = delta, epsilon
 
     def is_member(self, u: str) -> bool:
         print(f"Performing membership query on '{u}'")
+        self.membership_query_counter += 1
         try:
             list(self.parser.recognize_on(u, self.s))
         except Exception:

@@ -6,7 +6,7 @@ from pprint import pprint
 from math import log, floor
 import heapq
 
-from teacher.simple_teacher import SimpleTeacher
+from teacher.teacher import MATeacher
 
 Alphabet = NewType("Alphabet", str)  # could be literal if known
 alphabet: list[Alphabet] = [Alphabet("a"), Alphabet("b")]
@@ -107,7 +107,7 @@ class Node:
 
         return self.children[0], self.children[1]
 
-    def sift(self, teacher: SimpleTeacher, u: str) -> Node:
+    def sift(self, teacher: MATeacher, u: str) -> Node:
         if self.is_leaf():
             return self
 
@@ -286,8 +286,7 @@ def link(node: Node, state: State) -> None:
 
 
 class ObservationPack:
-    # teacher: Teacher
-    teacher: SimpleTeacher
+    teacher: MATeacher
     hypothesis: Hypothesis
     dtree: Node
 
@@ -470,7 +469,7 @@ class ObservationPack:
         self.dtree.print_tree()
 
         iterations = 0
-        while not (equiv := self.teacher.is_equivalent(self.hypothesis))[0]:
+        while not (equiv := self.teacher.is_equivalent(*self.hypothesis.to_grammar()))[0]:
             if max_iterations != -1 and iterations >= max_iterations:
                 print("Reached maximum iterations")
                 return self.hypothesis, self.dtree
@@ -490,15 +489,9 @@ class ObservationPack:
         return self.hypothesis, self.dtree
 
 
-def main():
-    if len(argv) == 2:
-        regex = argv[1]
-    else:
-        # Default regex: accepts strings with even num a's and even num b's
-        regex = r"((b(aa)*b)|((a|b(aa)*ab)((bb)|(ba(aa)*ab))*(a|ba(aa)*b)))*"
-
-    # teacher = MATeacher(regex, 0.01, 0.01)
-    teacher = SimpleTeacher(cast(list[str], alphabet), regex, 0.01, 0.01)
+def run_alg(regex) -> int:
+    teacher = MATeacher(regex, 0.01, 0.01)
+    # teacher = SimpleTeacher(cast(list[str], alphabet), regex, 0.01, 0.01)
 
     start_time = perf_counter()
     # TODO: should really be running this multiple times and averaging the time
@@ -513,6 +506,34 @@ def main():
     pprint(hypothesis.to_grammar())
     print("=" * 40)
     print(f"Learning completed in {end_time - start_time} seconds")
+    print(f"There were {teacher.membership_query_counter} membership queries")
+    print("=" * 40)
+    return teacher.equivalence_query_counter
+
+def main():
+    if len(argv) == 2:
+        regex = argv[1]
+    else:
+        # Default regex: accepts strings with even num a's and even num b's
+        regex = r"((b(aa)*b)|((a|b(aa)*ab)((bb)|(ba(aa)*ab))*(a|ba(aa)*b)))*"
+
+    teacher = MATeacher(regex, 0.01, 0.01)
+    # teacher = SimpleTeacher(cast(list[str], alphabet), regex, 0.01, 0.01)
+
+    start_time = perf_counter()
+    # TODO: should really be running this multiple times and averaging the time
+    hypothesis, tree = ObservationPack(teacher).learn()
+    end_time = perf_counter()
+
+    print("=" * 40)
+    hypothesis.print_hypothesis()
+    print("=" * 40)
+    tree.print_tree()
+    print("=" * 40)
+    pprint(hypothesis.to_grammar())
+    print("=" * 40)
+    print(f"Learning completed in {end_time - start_time} seconds")
+    print(f"There were {teacher.membership_query_counter} membership queries")
     print("=" * 40)
 
 
