@@ -285,7 +285,29 @@ class Hypothesis:
 
         return curr
 
+    def evaluate_nondeterministic(self, u: str, start: Optional[State] = None):
+        curr = start or self.start
+
+        for c in u:
+            assert isinstance(State, curr)
+
+            t = curr.trans[Alphabet(c)]
+
+            if t.tgt_state is None:
+                target_leaf = t.tgt_node.sift()
+                t.set_target(target_leaf)
+
+            curr = t.tgt_state
+
+            if curr is None:
+                raise ValueError("Null state reached. Hypothesis is not closed.")
+
+        return curr in self.final
+
     def evaluate(self, u: str, start: Optional[State] = None):
+        """
+        Needs to be deterministic for this to work...
+        """
         curr = start or self.start
 
         for c in u:
@@ -368,7 +390,13 @@ class TTTAlgorithm:
                 break
 
     def finalise_discriminators(self) -> None:
-        ...  # TODO: implement
+        # TODO: implement
+        # while 5.1 doesn't hold (can do basic blcok split):
+        #    block_root = blk_root(block)
+        #    successor_lca = lca([q.trans[a].tgt_node for q in block])
+        #    discriminator = a + successor_lca.discriminator
+        #    self.replace_block_root(block_root, discriminator)
+        #    self.close_transitions_soft()
 
     def replace_block_root(self, block_root: Node, v: str) -> None:
         ...  # TODO: implement
@@ -378,7 +406,20 @@ class TTTAlgorithm:
         Given a state q and counterexample w, returns a decomposition (u, a, v)
         where len(a) == 1 and certain properties are satisfied.
         """
-        ...  # TODO: implement
+        # define prefix mapping
+        def prefix_mapping(s: str, i: int) -> str:
+            assert 0 <= i <= len(s)
+            return self.hypothesis.state_of(s[:i]).aseq + s[i:]
+
+        # define alpha
+        def alpha(i: int) -> bool:
+            return self.teacher.is_member(prefix_mapping(w, i)) == self.hypothesis.evaluate_nondeterministic(w)
+
+        # binary search (or some variation of it)
+        # i = self.exponential_search(alpha, len(w))
+        i = self.partition_search(alpha, len(w))
+
+        return w[:i], Alphabet(w[i]), w[i+1:]
 
     # def decompose(self, w: str) -> tuple[str, Alphabet, str]:
         # # define prefix mapping
