@@ -40,7 +40,6 @@ class SimpleTeacher:
 
         for _ in range(num_calls):
             s = self.gen_random(max_length)
-            print(s)
             if self.is_member(s) != hypothesis.evaluate(s):
                 return False, s
 
