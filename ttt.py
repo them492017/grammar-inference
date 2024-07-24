@@ -23,9 +23,11 @@ class Node:
     discriminator: Optional[str]
     temporary: bool
     incoming: set[Transition]
+    block: Optional[Block]
 
     def __init__(self, zero: Optional[Node], one: Optional[Node],
-                 discriminator: Optional[str], temporary: bool = False):
+                 discriminator: Optional[str], temporary: bool = False,
+                 block: Optional[Block] = None):
         self.children = [zero, one]
         self.parent = None
 
@@ -35,6 +37,8 @@ class Node:
         self.discriminator = discriminator
         self.temporary = temporary
         self.incoming = set()
+
+        self.block = block
 
         for o, child in enumerate(self.children):
             if child is not None and discriminator is not None:
@@ -76,6 +80,10 @@ class Node:
             print(f"{" " * 4 * level}{arrow} <{self.discriminator}{debug_info}>")
             self.children[1].print_tree(1, level+1, property)
 
+    @property
+    def depth(self) -> int:
+        return len(self.signature)
+
     @classmethod
     def make_leaf(cls, state: Optional[State]) -> Node:
         leaf = cls(None, None, None)
@@ -105,11 +113,14 @@ class Node:
         self.discriminator = discriminator
         self.temporary = True
         self.state = None
+        if self.block is None:
+            self.block = Block(self)
 
         for o, child in enumerate(self.children):
-            if child is not None:
+            if child is not None:  # maybe should assert instead
                 child.parent = self
                 child.signature = self.signature | {(discriminator, o)}
+                child.block = self.block
 
         return self.children[0], self.children[1]
 
@@ -319,6 +330,32 @@ class Hypothesis:
         return curr in self.final
 
 
+class Block:
+    root: Node
+    states: set[State]
+
+    # all nodes should have a pointer to their block
+    # then when they are split they add the new state to block.states
+
+    # store list of blocks in hypothesis?
+    # TODO: when can new blocks be created?
+    # - when splitting a block in discriminator finalisation (replace_block)
+    # - when splitting a leaf node
+    # - when closing transitions and a new state is discovered
+
+    def __init__(self, root: Node) -> None:
+        self.root = root
+        self.states = set()
+        if self.root.state is not None:
+            self.states.add(self.root.state)
+
+    def is_singleton(self) -> bool:
+        return self.root.is_leaf()
+
+    def replace_block(self, v: str) -> None:
+        ...  # TODO: implement
+
+
 def link(node: Node, state: State) -> None:
     node.state = state
     state.node = node
@@ -379,12 +416,18 @@ class TTTAlgorithm:
                 q = self.hypothesis.make_tree(self.dtree, t)
                 # remove all transitions from transitions_to_new with same aseq
                 while len(transitions_to_new) > 0 and not t < transitions_to_new[0]:
+                    # TODO: this should only be called once so might not need heap
                     heapq.heappop(transitions_to_new)
                 # make the state final if needed
                 if t.tgt_node.is_final():
                     self.hypothesis.final.add(q)
                 # link t to the correct state
                 link(t.tgt_node, q)
+                # create a new block for the state if needed
+                if q.node.parent.block is not None:
+                    q.node.block = q.node.parent.block
+                else:
+                    q.node.block = Block(q.node)
 
             if len(transitions_to_new) == len(self.hypothesis.open_transitions) == 0:
                 break
@@ -393,7 +436,7 @@ class TTTAlgorithm:
         # TODO: implement
         # while 5.1 doesn't hold (can do basic blcok split):
         #    block_root = blk_root(block)
-        #    successor_lca = lca([q.trans[a].tgt_node for q in block])
+        #    successor_lca = lca([q.trans[a].tgt_node for q in block.states])
         #    discriminator = a + successor_lca.discriminator
         #    self.replace_block_root(block_root, discriminator)
         #    self.close_transitions_soft()
