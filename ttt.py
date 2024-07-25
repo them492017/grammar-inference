@@ -14,6 +14,8 @@ alphabet: list[Alphabet] = [Alphabet("a"), Alphabet("b")]
 
 
 T = TypeVar("T")
+def debug_fn():
+    pass
 
 
 def choose(st: set[T]) -> T:
@@ -265,8 +267,8 @@ class State:
         self.node = None
         self.aseq = ""
 
-    # def __str__(self) -> str:
-    #     return f"q{self.id}"
+    def __repr__(self) -> str:
+        return f"q{self.id}"
 
 
 class Transition:
@@ -350,8 +352,11 @@ class Hypothesis:
         for state in list(self.states):
             print(f"State: q{state.id} (aseq = {state.aseq})")
             for a, transition in state.trans.items():
-                assert isinstance(transition.tgt_state, State)
-                print(f"\t-{a}-> q{transition.tgt_state.id}")
+                if isinstance(transition.tgt_state, State):
+                    print(f"\t-{a}-> q{transition.tgt_state.id}")
+                else:
+                    assert transition.tgt_node.block is not None
+                    print(f"\t-{a}-> {transition.tgt_node.block.states}")
 
     def to_grammar(self) -> tuple[dict[str, list[list[str]]], str]:
         # TODO: store hypothesis in this form so it doesnt have to be rebuilt each iteration
@@ -603,8 +608,10 @@ class Block:
         state = hypothesis.make_tree(root, t)
         new_node = Node.new().make_leaf(state, block, hypothesis)
         new_node.incoming = inc[n] - {t}
+
         for t in new_node.incoming:
             t.tgt_node = new_node
+
         link(new_node, state)
         print(f"Created new node {new_node} with associated state q{state.id}")
 
@@ -638,6 +645,14 @@ class TTTAlgorithm:
         link(leaf, self.hypothesis.start)
 
         self.close_transitions_soft()
+
+        global debug_fn
+        def debug_fn(property="id"):
+            print("===DEBUG_FN===")
+            self.hypothesis.print_hypothesis()
+            pprint(self.hypothesis.to_grammar())
+            self.dtree.print_tree(property=property)
+            print("===DEBUG_FN===")
 
     def close_transitions_soft(self) -> None:
         """
@@ -684,9 +699,8 @@ class TTTAlgorithm:
             if len(transitions_to_new) == len(self.hypothesis.open_transitions) == 0:
                 break
 
-    def get_splittable_block(self, fn) -> Optional[tuple[Block, Alphabet]]:
-        print("===")
-        fn()
+    def get_splittable_block(self) -> Optional[tuple[Block, Alphabet]]:
+        print("===Starting get_splittable_block")
         for block in self.hypothesis.blocks:
             for a in alphabet:
                 target_block = None
@@ -698,20 +712,19 @@ class TTTAlgorithm:
                     if target_block is None:
                         target_block = target.block
                     elif target_block != target.block:
+                        print("Found splittable block:", block)
                         return block, a
         return None
 
-    def finalise_discriminators(self, fn) -> None:
+    def finalise_discriminators(self) -> None:
         # while eqn 5.1 from paper doesn't hold (can do simple finalisation routine):
-        while (block_split := self.get_splittable_block(fn)) is not None:
+        while (block_split := self.get_splittable_block()) is not None:
             block, a = block_split
-            fn()
             successor_lca = Node.lca([q.trans[a].tgt_node for q in block.states])
             # all transitions don't point to the same state (otherwise loop condition does not hold)
             # hence assertion should always hold
             assert successor_lca.discriminator is not None
             discriminator = cast(str, a) + successor_lca.discriminator
-            fn()
             block.replace_block(self.teacher, discriminator, self.dtree, self.hypothesis)
             self.close_transitions_soft()
             print("==========Finalised a discriminator!")
@@ -810,7 +823,10 @@ class TTTAlgorithm:
         for state in block.states:
             assert state.node is not None
             for v, o in state.node.signature:
+                # TODO: temporarily use membership query instead of signature
+                o = self.teacher.is_member(state.aseq + v)
                 if o != self.hypothesis.evaluate(v, start=state):
+                    assert self.hypothesis.evaluate(v, start=state) != self.teacher.is_member(state.aseq + v)
                     return state, v
 
         raise AssertionError("No output inconsistency found")
@@ -819,6 +835,9 @@ class TTTAlgorithm:
         state, w = self.hypothesis.start, counterexample
         finished = False
         while not finished:  # while there exist temporary nodes
+            if len(self.hypothesis.states) >= 4:
+                break  # TODO: TEMPORARY ONLY
+
             self.dtree.print_tree(property="id")
             # TODO: fix bug where repeated counterexamples are found
             #    -> test with regex "abba"
@@ -829,22 +848,19 @@ class TTTAlgorithm:
             self.dtree.print_tree(property="id")
             self.close_transitions_soft()
 
-            def fn():  # TODO: remove fn (unnecessary)
-                pass
-                self.dtree.print_tree(property="depth")
-                # self.dtree.print_tree(property="id")
-                # print("===")
-                # self.dtree.print_tree(property="block")
-            self.finalise_discriminators(fn)
+            self.finalise_discriminators()
 
             # execute if there is a non-trivial block remaining
             finished = True
             for block in self.hypothesis.blocks:
                 if not block.is_singleton():
                     print("Block should have inconsistency:", block, block.states)
+                    debug_fn("block")
                     self.dtree.print_tree(property="block")
                     state, w = self.find_output_inconsistency(block)
-                    assert self.hypothesis.evaluate(v, start=state) != self.teacher.is_member(state.aseq + v)
+                    # print(state, state.aseq, v)
+                    # self.hypothesis.print_hypothesis()
+                    assert self.hypothesis.evaluate(w, start=state) != self.teacher.is_member(state.aseq + w)
                     finished = False
                     break
 
