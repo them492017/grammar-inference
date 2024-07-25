@@ -14,7 +14,9 @@ alphabet: list[Alphabet] = [Alphabet("a"), Alphabet("b")]
 
 
 T = TypeVar("T")
-def debug_fn():
+
+
+def debug_fn(property: str) -> None:
     pass
 
 
@@ -46,10 +48,10 @@ class Node:
 
     def __init__(self, zero: Optional[Node], one: Optional[Node],
                  discriminator: Optional[str], temporary: bool = False,
-                 block: Optional[Block] = None,
+                 block: Optional[Block] = None, parent: Optional[Node] = None,
                  signature: Optional[set[tuple[str, int]]] = None):
         self.children = [zero, one]
-        self.parent = None
+        self.parent = parent
 
         # self.signature = signature or set()
         self.state = None
@@ -82,6 +84,10 @@ class Node:
             debug_info = " " + str(self.block)
         elif property == "depth":
             debug_info = " " + str(self.depth)
+        elif property == "signature":
+            debug_info = " " + str(self.signature)
+        elif property == "parent":
+            debug_info = " " + str(self.parent)
         else:
             debug_info = ""
 
@@ -148,7 +154,7 @@ class Node:
     def make_inner(self, v: str, t0: Node, t1: Node, block: Optional[Block],
                    temporary: bool) -> Node:
         self.__init__(t0, t1, v, temporary=temporary, block=block,
-                      signature=self.signature)
+                      signature=self.signature, parent=self.parent)
         # if block is None:
         #     print("==================New leaf has no block")
 
@@ -199,6 +205,7 @@ class Node:
                 child.block = self.block
 
         assert self.block is not None
+        assert self.parent is not None
 
         print("Split leaf is_leaf() returns", self.is_leaf())
         return self.children[0], self.children[1]
@@ -230,6 +237,8 @@ class Node:
     @classmethod
     def lca(cls, nodes: list[Node]) -> Node:
         print("Computing LCA of", nodes)
+        debug_fn("signature")
+        debug_fn("parent")
         min_depth = min(map(lambda node: node.depth, nodes))
         nodes_in_layer: set[Node] = set()
 
@@ -734,7 +743,7 @@ class TTTAlgorithm:
         Given a state q and counterexample w, returns a decomposition (u, a, v)
         where len(a) == 1 and certain properties are satisfied.
         """
-        print(f"Analysing counterexample '{w}'")
+        print(f"Analysing inconsistency '{w}' from start state {q}")
         if len(w) == 1:
             return "", Alphabet(w), ""  # only possible decomposition
 
@@ -742,13 +751,13 @@ class TTTAlgorithm:
         def prefix_mapping(s: str, i: int) -> str:
             assert 0 <= i <= len(s)
             return self.hypothesis.state_of_nondeterministic(
-                s[:i], self.teacher
+                s[:i], self.teacher, start=q
             ).aseq + s[i:]
 
         # define alpha
         def alpha(i: int) -> bool:
-            return self.teacher.is_member(prefix_mapping(w, i)) \
-                == self.hypothesis.evaluate_nondeterministic(w, self.teacher)
+            return self.teacher.is_member(prefix_mapping(w, i)) == \
+                self.hypothesis.evaluate_nondeterministic(w, self.teacher, q)
 
         # binary search (or some variation of it)
         # i = self.exponential_search(alpha, len(w))
@@ -835,16 +844,13 @@ class TTTAlgorithm:
         state, w = self.hypothesis.start, counterexample
         finished = False
         while not finished:  # while there exist temporary nodes
-            if len(self.hypothesis.states) >= 4:
-                break  # TODO: TEMPORARY ONLY
-
             self.dtree.print_tree(property="id")
             # TODO: fix bug where repeated counterexamples are found
             #    -> test with regex "abba"
             #    -> bug with incorrect signature!!!
             u, a, v = self.analyse_output_inconsistency(state, w)
             print(f"Decomposed {w} into {(u, a, v)}")
-            self.split(u, a, v)
+            self.split(u, a, v, state)
             self.dtree.print_tree(property="id")
             self.close_transitions_soft()
 
@@ -864,9 +870,9 @@ class TTTAlgorithm:
                     finished = False
                     break
 
-    def split(self, u: str, a: Alphabet, v: str) -> None:
+    def split(self, u: str, a: Alphabet, v: str, q: State) -> None:
         # TODO: probably should keep track of new blocks / temporary nodes created?
-        q = self.hypothesis.state_of(u)
+        q = self.hypothesis.state_of(u, start=q)  # maybe non-deterministic
         t = q.trans[a]
         print(f"Running split with q_pred=q{q.id}, transition {t}")
         print(t.tgt_node)

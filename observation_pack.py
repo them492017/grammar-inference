@@ -498,7 +498,7 @@ def main():
         regex = r"((b(aa)*b)|((a|b(aa)*ab)((bb)|(ba(aa)*ab))*(a|ba(aa)*b)))*"
 
     # teacher = MATeacher(regex, 0.01, 0.01)
-    teacher = SimpleTeacher(cast(list[str], alphabet), regex, 0.01, 0.01)
+    teacher = SimpleTeacher(cast(list[str], alphabet), regex, 0.001, 0.001)
 
     start_time = perf_counter()
     # TODO: should really be running this multiple times and averaging the time
