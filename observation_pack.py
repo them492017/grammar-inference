@@ -250,7 +250,7 @@ class Hypothesis:
             new_state.trans[a] = Transition(new_state, root, t.aseq + a)
             self.open_transitions.append(new_state.trans[a])
 
-        print(new_state.trans)
+        # print(new_state.trans)
 
         return new_state
 
@@ -311,32 +311,32 @@ class ObservationPack:
         """
         Closes all open transitions in the hypothesis
         """
-        print("Starting CloseTransitions")
-        print("Currently, the open transitions are", self.hypothesis.open_transitions)
+        # print("Starting CloseTransitions")
+        # print("Currently, the open transitions are", self.hypothesis.open_transitions)
         # self.dtree.print_tree(property="id")
         transitions_to_new: list[Transition] = []  # this should be a pqueue / heap with len(aseq)
         while True:
             while len(self.hypothesis.open_transitions) > 0:
                 t = self.hypothesis.open_transitions.pop(0)  # TODO: pop from end for efficiency
-                print("Closing", t)
+                # print("Closing", t)
                 assert t.is_open()
 
-                print("Sifting transition")
+                # print("Sifting transition")
                 target = t.tgt_node.sift(self.teacher, t.aseq)
                 t.set_target(target)
 
-                print(f"Transition with aseq={t.aseq} has new target {target}")
+                # print(f"Transition with aseq={t.aseq} has new target {target}")
                 # print(target.is_leaf(), target)
                 # self.dtree.print_tree_debug(property="state")
 
                 if target.is_leaf() and target.state is None:
                     # transition discovered a new state
-                    print("New state discovered at", target)
+                    # print("New state discovered at", target)
                     heapq.heappush(transitions_to_new, t)
 
             if len(transitions_to_new) > 0:
                 t = transitions_to_new[0]
-                print("Making new state for", t)
+                # print("Making new state for", t)
                 # make t into a tree transition
                 q = self.hypothesis.make_tree(self.dtree, t)
                 # remove all transitions from transitions_to_new with same aseq
@@ -388,7 +388,7 @@ class ObservationPack:
         found = False
 
         while not found and high - range_len > 0:
-            print(low, high, high - range_len)
+            # print(low, high, high - range_len)
             if alpha(high - range_len) == 0:
                 low = high - range_len
                 found = True
@@ -432,14 +432,14 @@ class ObservationPack:
 
     def refine(self, counterexample: str) -> None:
         u, a, v = self.decompose(counterexample)
-        print(f"Decomposed {counterexample} into {(u, a, v)}")
+        # print(f"Decomposed {counterexample} into {(u, a, v)}")
         self.split(u, a, v)
         self.close_transitions()
 
     def split(self, u: str, a: Alphabet, v: str) -> None:
         q = self.hypothesis.state_of(u)
         t = q.trans[a]
-        print(f"Running split with q_pred=q{q.id}, transition {t}")
+        # print(f"Running split with q_pred=q{q.id}, transition {t}")
 
         old_state = t.tgt_state
         new_state = self.hypothesis.make_tree(self.dtree, t)
@@ -450,7 +450,7 @@ class ObservationPack:
         # TODO: justify asserts
         assert old_state is not None
         assert old_state.node is not None
-        print(f"Splitting q{old_state.id}'s node with discriminator {v}")
+        # print(f"Splitting q{old_state.id}'s node with discriminator {v}")
         leaf0, leaf1 = old_state.node.split_leaf(v)
 
         self.hypothesis.open_transitions += list(old_state.node.incoming)

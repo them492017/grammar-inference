@@ -188,11 +188,11 @@ class Node:
         self.children[0] = Node.new().make_leaf(None, block, hypothesis)
         self.children[1] = Node.new().make_leaf(None, block, hypothesis)
 
-        print("Split leaf now has children", self.children)
+        # print("Split leaf now has children", self.children)
 
         self.discriminator = discriminator
-        print("Split leaf now has discriminator", self.discriminator)
-        print("Split leaf is_leaf() returns", self.is_leaf())
+        # print("Split leaf now has discriminator", self.discriminator)
+        # print("Split leaf is_leaf() returns", self.is_leaf())
         self.temporary = True
         self.state = None
         if self.block is None:
@@ -207,7 +207,7 @@ class Node:
         assert self.block is not None
         assert self.parent is not None
 
-        print("Split leaf is_leaf() returns", self.is_leaf())
+        # print("Split leaf is_leaf() returns", self.is_leaf())
         return self.children[0], self.children[1]
 
     def sift(self, teacher: SimpleTeacher, u: str) -> Node:
@@ -236,9 +236,9 @@ class Node:
 
     @classmethod
     def lca(cls, nodes: list[Node]) -> Node:
-        print("Computing LCA of", nodes)
-        debug_fn("signature")
-        debug_fn("parent")
+        # print("Computing LCA of", nodes)
+        # debug_fn("signature")
+        # debug_fn("parent")
         min_depth = min(map(lambda node: node.depth, nodes))
         nodes_in_layer: set[Node] = set()
 
@@ -251,7 +251,7 @@ class Node:
 
             nodes_in_layer.add(node)
 
-        print(nodes_in_layer)
+        # print(nodes_in_layer)
 
         while len(nodes_in_layer) > 1:
             nodes_in_layer = {
@@ -368,8 +368,6 @@ class Hypothesis:
                     print(f"\t-{a}-> {transition.tgt_node.block.states}")
 
     def to_grammar(self) -> tuple[dict[str, list[list[str]]], str]:
-        # TODO: store hypothesis in this form so it doesnt have to be rebuilt each iteration
-        #       Actually, the teacher copies the grammar so the complexity would not change
         grammar: dict[str, list[list[str]]] = {}
         for state in self.states:
             state_name = f"q{state.id}"
@@ -387,8 +385,8 @@ class Hypothesis:
         new_state = State(self.next_state)
         self.next_state += 1
         self.states.add(new_state)
-        print(f"Added new state q{new_state.id} to hypothesis")
-        print(f"States: {list(map(lambda state: f"q{state.id}", list(self.states)))}")
+        # print(f"Added new state q{new_state.id} to hypothesis")
+        # print(f"States: {list(map(lambda state: f"q{state.id}", list(self.states)))}")
         return new_state
 
     def make_tree(self, root: Node, t: Transition) -> State:
@@ -403,24 +401,7 @@ class Hypothesis:
             new_state.trans[a] = Transition(new_state, root, t.aseq + a)
             self.open_transitions.append(new_state.trans[a])
 
-        print(new_state.trans)
-
         return new_state
-
-    def state_of(self, u: str, start: Optional[State] = None) -> State:
-        """
-        Given a string u, returns H[u]. When this function is called, the hypothesis
-        should be closed.
-        """
-        # TODO: maybe need to make choice as in Hypothesis.evaluate
-        curr = start or self.start
-        for c in u:
-            curr = curr.trans[Alphabet(c)].tgt_state
-
-            if curr is None:
-                raise ValueError("Null state reached. Hypothesis is not closed.")
-
-        return curr
 
     def state_of_nondeterministic(self, u: str, teacher: SimpleTeacher,
                                   start: Optional[State] = None) -> State:
@@ -494,7 +475,7 @@ class Block:
     # - when closing transitions and a new state is discovered
 
     def __init__(self, root: Node, hypothesis: Hypothesis) -> None:
-        print("=====Initialising block now", self)
+        # print("=====Initialising block now", self)
         self.root = root
         self.states = set()
         if self.root.state is not None:
@@ -502,12 +483,12 @@ class Block:
         hypothesis.blocks.add(self)
 
     def is_singleton(self) -> bool:
-        print(self.root)
+        # print(self.root)
         return self.root.is_leaf()
 
     def replace_block(self, teacher: SimpleTeacher, v: str, dtree: Node,
                       hypothesis: Hypothesis) -> None:
-        print("=======Starting replace block with v =", v)
+        # print("=======Starting replace block with v =", v)
         # mark[o][n] = True if n in o-subtree else false
         # inc[o][n] = [incoming transitions of the o-subtree version of n]
         # state[o][n] = state corresponding to o-subtree version of n
@@ -536,9 +517,9 @@ class Block:
         block0, block1 = Block(self.root, hypothesis), Block(self.root, hypothesis)
         hypothesis.blocks.remove(self)
 
-        pprint(mark)
-        pprint(inc)
-        pprint(state)
+        # pprint(mark)
+        # pprint(inc)
+        # pprint(state)
 
         t0, t1 = (
             self.extract(self.root, mark[0], inc[0], state[0],
@@ -560,7 +541,7 @@ class Block:
         #         # TODO: maybe just use del keyword
 
         self.root.make_inner(v, t0, t1, None, False)
-        print("Finished replace block")
+        # print("Finished replace block")
 
     def mark(self, mark: tuple[set[Node], set[Node]],
              n: Node, o: bool) -> None:
@@ -576,7 +557,7 @@ class Block:
     def extract(self, n: Node, mark: set[Node], inc: dict[Node, set[Transition]],
                 state: dict[Node, State], block: Block, dtree: Node,
                 hypothesis: Hypothesis) -> Node:
-        print("Extracting", n)
+        # print("Extracting", n)
         if n.is_leaf():
             res = Node.new().make_leaf(state[n], block, hypothesis)
             link(res, state[n])
@@ -622,7 +603,7 @@ class Block:
             t.tgt_node = new_node
 
         link(new_node, state)
-        print(f"Created new node {new_node} with associated state q{state.id}")
+        # print(f"Created new node {new_node} with associated state q{state.id}")
 
         return new_node
 
@@ -657,42 +638,43 @@ class TTTAlgorithm:
 
         global debug_fn
         def debug_fn(property="id"):
-            print("===DEBUG_FN===")
-            self.hypothesis.print_hypothesis()
-            pprint(self.hypothesis.to_grammar())
-            self.dtree.print_tree(property=property)
-            print("===DEBUG_FN===")
+            # print("===DEBUG_FN===")
+            # self.hypothesis.print_hypothesis()
+            # pprint(self.hypothesis.to_grammar())
+            # self.dtree.print_tree(property=property)
+            # print("===DEBUG_FN===")
+            pass
 
     def close_transitions_soft(self) -> None:
         """
         Closes all open transitions in the hypothesis
         """
-        print("Starting CloseTransitions-Soft")
-        print("Currently, the open transitions are", self.hypothesis.open_transitions)
+        # print("Starting CloseTransitions-Soft")
+        # print("Currently, the open transitions are", self.hypothesis.open_transitions)
         # self.dtree.print_tree(property="id")
         transitions_to_new: list[Transition] = []  # this should be a pqueue / heap with len(aseq)
         while True:
             while len(self.hypothesis.open_transitions) > 0:
                 t = self.hypothesis.open_transitions.pop(0)  # TODO: pop from end for efficiency
-                print("Closing", t)
+                # print("Closing", t)
                 assert t.is_open()
 
-                print("Sifting transition")
+                # print("Sifting transition")
                 target = t.tgt_node.soft_sift(self.teacher, t.aseq)
                 t.set_target(target)
 
-                print(f"Transition with aseq={t.aseq} has new target {target}")
+                # print(f"Transition with aseq={t.aseq} has new target {target}")
                 # print(target.is_leaf(), target)
                 # self.dtree.print_tree_debug(property="state")
 
                 if target.is_leaf() and target.state is None:
                     # transition discovered a new state
-                    print("New state discovered at", target)
+                    # print("New state discovered at", target)
                     heapq.heappush(transitions_to_new, t)
 
             if len(transitions_to_new) > 0:
                 t = transitions_to_new[0]
-                print("Making new state for", t)
+                # print("Making new state for", t)
                 # make t into a tree transition
                 q = self.hypothesis.make_tree(self.dtree, t)
                 # remove all transitions from transitions_to_new with same aseq
@@ -709,19 +691,19 @@ class TTTAlgorithm:
                 break
 
     def get_splittable_block(self) -> Optional[tuple[Block, Alphabet]]:
-        print("===Starting get_splittable_block")
+        # print("===Starting get_splittable_block")
         for block in self.hypothesis.blocks:
             for a in alphabet:
                 target_block = None
                 for state in block.states:
                     target = state.trans[a].tgt_node
-                    print(block, state.id, a, target)
+                    # print(block, state.id, a, target)
                     assert target is not None
                     assert target.block is not None
                     if target_block is None:
                         target_block = target.block
                     elif target_block != target.block:
-                        print("Found splittable block:", block)
+                        # print("Found splittable block:", block)
                         return block, a
         return None
 
@@ -734,16 +716,16 @@ class TTTAlgorithm:
             # hence assertion should always hold
             assert successor_lca.discriminator is not None
             discriminator = cast(str, a) + successor_lca.discriminator
+            # print(f"Splitting {block} with new final discriminator {discriminator}")
             block.replace_block(self.teacher, discriminator, self.dtree, self.hypothesis)
             self.close_transitions_soft()
-            print("==========Finalised a discriminator!")
 
     def analyse_output_inconsistency(self, q: State, w: str) -> tuple[str, Alphabet, str]:
         """
         Given a state q and counterexample w, returns a decomposition (u, a, v)
         where len(a) == 1 and certain properties are satisfied.
         """
-        print(f"Analysing inconsistency '{w}' from start state {q}")
+        # print(f"Analysing inconsistency '{w}' from start state {q}")
         if len(w) == 1:
             return "", Alphabet(w), ""  # only possible decomposition
 
@@ -782,7 +764,6 @@ class TTTAlgorithm:
         found = False
 
         while not found and high - range_len > 0:
-            print(low, high, high - range_len)
             if alpha(high - range_len) == 0:
                 low = high - range_len
                 found = True
@@ -844,25 +825,23 @@ class TTTAlgorithm:
         state, w = self.hypothesis.start, counterexample
         finished = False
         while not finished:  # while there exist temporary nodes
-            self.dtree.print_tree(property="id")
-            # TODO: fix bug where repeated counterexamples are found
-            #    -> test with regex "abba"
-            #    -> bug with incorrect signature!!!
+            # self.dtree.print_tree(property="id")
             u, a, v = self.analyse_output_inconsistency(state, w)
             print(f"Decomposed {w} into {(u, a, v)}")
             self.split(u, a, v, state)
-            self.dtree.print_tree(property="id")
+            # self.dtree.print_tree(property="id")
             self.close_transitions_soft()
 
+            self.dtree.print_tree(property="temporary")
             self.finalise_discriminators()
 
             # execute if there is a non-trivial block remaining
             finished = True
             for block in self.hypothesis.blocks:
                 if not block.is_singleton():
-                    print("Block should have inconsistency:", block, block.states)
-                    debug_fn("block")
-                    self.dtree.print_tree(property="block")
+                    # print("Block should have inconsistency:", block, block.states)
+                    # debug_fn("block")
+                    # self.dtree.print_tree(property="block")
                     state, w = self.find_output_inconsistency(block)
                     # print(state, state.aseq, v)
                     # self.hypothesis.print_hypothesis()
@@ -871,11 +850,8 @@ class TTTAlgorithm:
                     break
 
     def split(self, u: str, a: Alphabet, v: str, q: State) -> None:
-        # TODO: probably should keep track of new blocks / temporary nodes created?
-        q = self.hypothesis.state_of(u, start=q)  # maybe non-deterministic
+        q = self.hypothesis.state_of_nondeterministic(u, self.teacher, start=q)  # maybe non-deterministic
         t = q.trans[a]
-        print(f"Running split with q_pred=q{q.id}, transition {t}")
-        print(t.tgt_node)
 
         old_state = t.tgt_state
         new_state = self.hypothesis.make_tree(self.dtree, t)
@@ -886,15 +862,11 @@ class TTTAlgorithm:
         # TODO: justify asserts
         assert old_state is not None
         assert old_state.node is not None
-        print(f"Splitting q{old_state.id}'s node with discriminator {v}")
+        # print(f"Splitting q{old_state.id}'s node with discriminator {v}")
         leaf0, leaf1 = old_state.node.split_leaf(v, self.hypothesis, old_state.node.block)
 
         self.hypothesis.open_transitions += list(old_state.node.incoming)
 
-        print(old_state.node.children, old_state.node.is_leaf())
-        old_state.node.print_tree(property="id")
-        inner_temp = old_state.node
-        print("==")
         # TODO: eliminate this query since the result is found in
         #       the output inconsistency analysis
         if self.teacher.is_member(old_state.aseq + v):
@@ -905,10 +877,6 @@ class TTTAlgorithm:
             # old state is 0-child
             link(leaf0, old_state)
             link(leaf1, new_state)
-        inner_temp.print_tree(property="id")
-        print("==")
-        print(inner_temp.parent)
-        print("==")
 
     def learn(self, max_iterations: int = -1) -> tuple[Hypothesis, Node]:
         self.hypothesis.print_hypothesis()
@@ -926,7 +894,6 @@ class TTTAlgorithm:
             self.refine(counterexample)
 
             print("=======END OF ITERATION=======")
-            # self.hypothesis.print_hypothesis()
             pprint(self.hypothesis.to_grammar())
             self.dtree.print_tree()
             print("=======START OF ITERATION=======")
