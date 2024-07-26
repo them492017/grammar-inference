@@ -911,7 +911,7 @@ def main():
         # Default regex: accepts strings with even num a's and even num b's
         regex = r"((b(aa)*b)|((a|b(aa)*ab)((bb)|(ba(aa)*ab))*(a|ba(aa)*b)))*"
 
-    teacher = SimpleTeacher(cast(list[str], alphabet), regex, 0.01, 0.01)
+    teacher = SimpleTeacher(cast(list[str], alphabet), regex, 0.001, 0.001)
 
     start_time = perf_counter()
     hypothesis, tree = TTTAlgorithm(teacher).learn()
