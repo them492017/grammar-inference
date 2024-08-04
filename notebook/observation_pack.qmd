@@ -1,0 +1,148 @@
+---
+title: "Grammar Inference with the TTT Algorithm"
+author: "Martin Ong"
+date: "2024-8-2"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+    code-tools: true
+    code-line-numbers: true
+    number-sections: true
+bibliography: [grammar-inference.bib]
+---
+# Prerequisites
+
+```{python}
+from __future__ import annotations
+from typing import Iterable, Optional, Any, Callable, TypeVar, cast
+from pprint import pprint
+from collections import defaultdict
+import heapq
+```
+
+# Observation Pack Algorithm
+Observation Pack is an algorithm for inferring regular grammars.
+It is able to infer grammars in a black-box context with the help of a
+teacher which answers membership and equivalence queries.
+
+Observation Pack is an optimisation of the L\* algorithm [@angluin_learning_1987],
+focusing on reducing the amount of redundant membership queries that are performed.
+As in L\*, states in the hypothesis correspond to a prefix-closed set,
+called the short prefixes, however Observation Pack improves on L\*
+by dropping the requirement for all suffixes to be evaluated for each state
+to distinguish them. <!-- TODO: REWORD -->
+
+## Notation
+somehting about aseq
+
+## Discrimination Trees
+A Discrimination Tree is a data structure which contains the minimal amount of
+information required to discriminate between a set of states in a finite state machine.
+
+A Discrimination Tree is a binary tree, in which each inner node has two children,
+where the inner nodes correspond with a discriminator string and leaves correspond
+with states in a finite state machine. The two children are denoted the 0-child
+and the 1-child, and any leaf corresponding to the state $x$ in the o-subtree
+($o \in \{0, 1\}$) satisfy $\lambda^{\mathcal{A}}(\lfloor x \rfloor v) = o$.
+
+
+
+It can be realised as follows:
+
+```{python}
+class Node:
+    incoming: set[Transition]
+    block: Optional[Block]
+    signature: set[tuple[str, bool]]
+
+    def __init__(self, incoming: set[Transition] = set(), block: Optional[Block] = None,
+                signature: set[tuple[str, bool]] = set()) -> None:
+        self.incoming = incoming
+        self.block = block
+        self.signature = signature
+
+    def __str__(self) -> str:
+        return self.to_string()
+
+    def to_string(self, child: int = -1, level: int = 0) -> str:
+        if child == 1:
+            arrow = "=>"
+        elif child == 0:
+            arrow = "->"
+        else:
+            arrow = "->"
+
+        if isinstance(LeafNode, self):
+            if self.state is None:
+                return f"{" " * 4 * level}{arrow} <None@{self}>"
+            else:
+                return f"{" " * 4 * level}{arrow} <q{self.state.id}>"
+        else:
+            self.children[0].to_string(0, level+1)
+            return f"{" " * 4 * level}{arrow} <{self.discriminator}>"
+            self.children[1].to_string(1, level+1)
+
+    @property
+    def depth(self) -> int:
+        return len(self.signature)
+
+class InnerNode(Node):
+    children: list[Node]
+    parent: Optional[InnerNode]
+    discriminator: str
+
+    def __init__(self, zero_child: Node, one_child: Node, discriminator: str,
+                    parent = None, incoming = set(), block = None,
+                    signature: set[tuple[str, bool]] = set()) -> None:
+        self.children = [zero_child, one_child]
+        self.parent = parent
+        self.discriminator = discriminator
+        super.__init__(incoming, block, signature)
+
+
+class LeafNode(Node):
+    parent: InnerNode
+    state: Optional[State]
+
+    def __init__(self, parent, state = None, incoming = set(), block = None,
+                    signature: set[tuple[str, bool]] = set()) -> None:
+        self.parent = parent
+        self.state = state
+        super.__init__(incoming, block, signature)
+```
+
+Notice that the discriminator of any two states can be computed by finding
+the lowest common ancestor of the nodes associated with the states.
+
+Moreover, for any set of states, a discriminator which essentially splits
+the set in two <!-- TODO: reword --> can be computed as the lowest common
+ancestor of the set of states.
+
+```{python}
+class Node(Node):
+    @classmethod
+    def lca(cls, nodes: list[Node]) -> Node:
+        min_depth = min(map(lambda node: node.depth, nodes))
+        nodes_in_layer: set[Node] = set()
+
+        for node in nodes:
+            while node.depth > min_depth:
+                node = node.parent
+
+                if node is None:
+                    raise ValueError("Null parent of non-root node")
+
+            nodes_in_layer.add(node)
+
+        while len(nodes_in_layer) > 1:
+            nodes_in_layer = {
+                node.parent for node in nodes_in_layer if node.parent is not None
+            }
+
+        if len(nodes_in_layer) == 0:
+            raise ValueError("LCA couldn't be computed")
+
+        return nodes_in_layer.pop()
+```
