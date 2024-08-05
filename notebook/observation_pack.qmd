@@ -16,7 +16,7 @@ bibliography: [grammar-inference.bib]
 
 ```{python}
 from __future__ import annotations
-from typing import Iterable, Optional, Any, Callable, TypeVar, cast
+from typing import Iterable, Optional, Any, Callable, TypeVar, Protocol, cast
 from pprint import pprint
 from collections import defaultdict
 import heapq
@@ -37,6 +37,75 @@ to distinguish them. <!-- TODO: REWORD -->
 ## Notation
 somehting about aseq
 
+## Teacher
+In order to learn a regular grammar, a Teacher is used which can answer membership
+and equivalence queries. An interface can be defined as follows:
+
+```{python}
+class HypothesisProtocol(Protocol):
+    def evaluate(self, u: str) -> bool:
+        ...
+
+
+class TeacherProtocol(Protocol):
+    def is_member(self, s: str) -> bool:
+        ...
+
+    def is_equivalent(self, h: HypothesisProtocol) -> tuple[bool, Optional[str]]:
+        ...
+```
+
+Membership queries are straightforward to implement, as the teacher can simply
+run the black-box program on the input string. However, equivalence queries are
+not so simple. Angluin showed that equivalence queries can be approximated through
+repeated membership queries in [@angluin_learning_1987], so that is the approach
+we will use here. In particular, she showed that if $i$ previous equivalence queries
+have been performed, then the number of membership queries to perform is given by
+$$\lceil \frac{1}{\varepsilon}\biggl(\log \frac{1}{\delta} + (\log 2)(i+1)\biggr) \rceil,$$
+where $\varepsilon, \delta$ are the accuracy and confidence parameters.
+
+```{python}
+class SimpleTeacher(Teacher):
+    alphabet: str
+    regex: Pattern[str]
+    equivalence_query_counter: int
+    epsilon: float
+    delta: float
+
+    def __init__(self, alphabet: str, pattern: str, accuracy: float = 0.1,
+                confidence: float = 0.1, seed: int = 1):
+        self.alphabet = alphabet
+        self.regex = re.compile(pattern)
+        self.equivalence_query_counter = 0
+        self.accuracy = epsilon
+        self.confidence = delta
+
+    def is_member(self, u: str) -> bool:
+        return self.regex.fullmatch(u) is not None
+
+    def is_equivalent(self, hypothesis: HypothesisProtocol,
+                        max_length: int = 10) -> tuple[bool, Optional[str]]:
+        self.equivalence_query_counter += 1
+        num_calls = math.ceil(1.0/self.epsilon * (math.log(1.0/self.delta) +
+                              self.equivalence_query_counter * math.log(2)))
+
+        for _ in range(num_calls):
+            s = self.gen_random(max_length)
+            if self.is_member(s) != hypothesis.evaluate(s):
+                return False, s
+
+        return True, None
+
+    def gen_random(self, max_length) -> str:
+        total_combinations = len(self.alphabet) ** max_length
+        random_idx = random.randint(1, total_combinations)
+
+        # TODO: just compare with precomputed values (no log needed)
+        length = math.floor(math.log(random_idx, len(self.alphabet)))
+
+        return "".join(random.choice(self.alphabet) for i in range(length))
+```
+
 ## Discrimination Trees
 A Discrimination Tree is a data structure which contains the minimal amount of
 information required to discriminate between a set of states in a finite state machine.
@@ -44,20 +113,23 @@ information required to discriminate between a set of states in a finite state m
 A Discrimination Tree is a binary tree, in which each inner node has two children,
 where the inner nodes correspond with a discriminator string and leaves correspond
 with states in a finite state machine. The two children are denoted the 0-child
-and the 1-child, and any leaf corresponding to the state $x$ in the o-subtree
-($o \in \{0, 1\}$) satisfy $\lambda^{\mathcal{A}}(\lfloor x \rfloor v) = o$.
+and the 1-child, and any leaf corresponding to a state $x$ in the o-subtree
+($o \in \{0, 1\}$) satisfies $\lambda^{\mathcal{A}}(\lfloor x \rfloor v) = o$.
 
+Each node in the tree stores its signature, which essentially gives its
+position in the tree. This signature is defined as  <!-- TODO: finish sentence -->
 
+Discrimination Trees are useful for grammar inference because they allow for states
+to be (bucketed) and (through sifting) <!-- TODO: fix this -->
 
-It can be realised as follows:
+A discrimination tree can be realised as follows.
 
 ```{python}
 class Node:
-    incoming: set[Transition]
     block: Optional[Block]
     signature: set[tuple[str, bool]]
 
-    def __init__(self, incoming: set[Transition] = set(), block: Optional[Block] = None,
+    def __init__(self, block: Optional[Block] = None,
                 signature: set[tuple[str, bool]] = set()) -> None:
         self.incoming = incoming
         self.block = block
@@ -65,24 +137,6 @@ class Node:
 
     def __str__(self) -> str:
         return self.to_string()
-
-    def to_string(self, child: int = -1, level: int = 0) -> str:
-        if child == 1:
-            arrow = "=>"
-        elif child == 0:
-            arrow = "->"
-        else:
-            arrow = "->"
-
-        if isinstance(LeafNode, self):
-            if self.state is None:
-                return f"{" " * 4 * level}{arrow} <None@{self}>"
-            else:
-                return f"{" " * 4 * level}{arrow} <q{self.state.id}>"
-        else:
-            self.children[0].to_string(0, level+1)
-            return f"{" " * 4 * level}{arrow} <{self.discriminator}>"
-            self.children[1].to_string(1, level+1)
 
     @property
     def depth(self) -> int:
@@ -113,8 +167,9 @@ class LeafNode(Node):
         super.__init__(incoming, block, signature)
 ```
 
-Notice that the discriminator of any two states can be computed by finding
-the lowest common ancestor of the nodes associated with the states.
+Since each inner node stores a string which discriminates between any leaves in
+its 0 and 1 subtrees, a discriminator for any two leaves can be computed by
+finding the lowest common ancestor of the leaves.
 
 Moreover, for any set of states, a discriminator which essentially splits
 the set in two <!-- TODO: reword --> can be computed as the lowest common
@@ -145,4 +200,24 @@ class Node(Node):
             raise ValueError("LCA couldn't be computed")
 
         return nodes_in_layer.pop()
+```
+
+Additionally, the sifting operation can be thought of as a variant of binary insertion,
+where an ordering of leaves is defined in relation to whether or not they are
+discriminated by the various discriminants in the tree.
+
+```{python}
+class Node(Node):
+    def sift(self, teacher: TeacherProtocol, u: str) -> Node:
+        if self.is_leaf():
+            return self
+
+        assert self.discriminator is not None  # self is inner
+
+        o = teacher.is_member(u + self.discriminator)
+        child = self.children[o]
+        if child is None:
+            raise ValueError("Null child reached in sifting")
+
+        return child.sift(teacher, u)
 ```
