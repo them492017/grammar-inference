@@ -1,7 +1,8 @@
 from typing import NewType
 
-from state import State
-from node import Node
+from state import State, Hypothesis
+from node import LeafNode, Node
+from teacher import Teacher
 
 # TODO: move this
 Alphabet = NewType('Alphabet', str)
@@ -9,26 +10,31 @@ class SimpleTeacher:
     ...
 
 class ObservationPack:
-    # teacher: Teacher
-    teacher: SimpleTeacher
-    hypothesis: State
+    alphabet: str
+    teacher: Teacher
+    hypothesis: Hypothesis
     dtree: Node
 
-    def __init__(self, teacher: SimpleTeacher):
+    def __init__(self, teacher: Teacher, alphabet: str):
+        self.alphabet = alphabet
         self.teacher = teacher
 
         t0, t1 = Node.make_leaf(None), Node.make_leaf(None)
-        self.dtree = Node.make_inner("", t0, t1)
-        self.hypothesis = Hypothesis(self.dtree)
+        self.dtree = Node.make_inner("", (t0, t1))
+        self.hypothesis = Hypothesis(self.dtree, self.alphabet)
 
-        leaf = self.dtree.sift(self.teacher, "")
+        leaf = self.dtree.sift("", self.teacher)
 
-        if leaf.is_final():
-            self.hypothesis.final.add(self.hypothesis.start)
+        if ("", True) in leaf.signature:
+            self.hypothesis.make_final(self.hypothesis.start)
 
-        link(leaf, self.hypothesis.start)
+        self.link(leaf, self.hypothesis.start)
 
         self.close_transitions()
+
+    def link(self, node: LeafNode, state: State) -> None:
+        node.state = state
+        state.node = node
 
     def close_transitions(self) -> None:
         ...

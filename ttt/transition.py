@@ -1,4 +1,4 @@
-from typing import Protocol, Union
+from typing import Protocol, Union, Optional
 
 from node import Node
 from state import State
@@ -12,14 +12,14 @@ class Transition(Protocol):
     aseq: str
     
     @property
-    def target(self) -> Union[Node, State]:
+    def target(self) -> Optional[Union[Node, State]]:
         ...
 
 
 class NonTreeTransition(Transition):
-    tgt: Node
+    tgt: Optional[Node]
 
-    def __init__(self, aseq: str, tgt: Node) -> None:
+    def __init__(self, aseq: str, tgt: Optional[Node]) -> None:
         self.aseq = aseq
         self.tgt = tgt
 
