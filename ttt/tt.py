@@ -3,6 +3,9 @@ from typing import Optional, Protocol
 from state import Hypothesis
 
 
+A = 4
+
+
 class Teacher(Protocol):
     def is_member(self, s: str) -> bool:
         ...

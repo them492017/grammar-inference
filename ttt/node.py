@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import Optional, Protocol
 
-from teacher import Teacher
+from tt import Teacher
 from state import State
+from node import InnerNode
 
 
 class Node(Protocol):
@@ -38,7 +39,7 @@ class Node(Protocol):
             *self.parent_info[0].signature
         ]
 
-    def sift(self, s: str, teacher: Teacher) -> LeafNode:
+    def sift(self, s: str, teacher: Teacher) -> Node:
         ...
 
 
@@ -49,7 +50,7 @@ class LeafNode(Node):
         super().__init__(children)
         self.state = None
 
-    def sift(self, s: str, teacher: Teacher) -> LeafNode:
+    def sift(self, s: str, teacher: Teacher) -> Node:
         return self
 
 
@@ -62,7 +63,7 @@ class InnerNode(Node):
         super().__init__(children)
         self.discriminator = discriminator
 
-    def sift(self, s: str, teacher: Teacher) -> LeafNode:
+    def sift(self, s: str, teacher: Teacher) -> Node:
         if teacher.is_member(s):
             if self.children[0] is None:
                 return self
