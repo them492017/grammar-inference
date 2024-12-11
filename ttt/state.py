@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional
 
 from transition import NonTreeTransition, Transition, TreeTransition
-from node import NodeProtocol
+from new_node import Node
 
 
 class Hypothesis:
@@ -10,13 +10,13 @@ class Hypothesis:
     A spanning-tree hypothesis
     """
     alphabet: str
-    root_node: NodeProtocol
+    root_node: Node
     open_transitions: list[NonTreeTransition]
     start: State
     states: set[State]
     final_states: set[State]
 
-    def __init__(self, root_node: NodeProtocol, alphabet: str) -> None:
+    def __init__(self, root_node: Node, alphabet: str) -> None:
         self.alphabet = alphabet
         self.root_node = root_node
         self.open_transitions = []
@@ -61,7 +61,7 @@ class State:
     A state in the spanning-tree hypothesis
     """
     hypothesis: Hypothesis
-    node: Optional[NodeProtocol]
+    node: Optional[Node]
     transitions: dict[str, Transition]
     aseq: str
     # incoming_transition: TreeTransition

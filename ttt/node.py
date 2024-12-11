@@ -42,34 +42,6 @@ class NodeProtocol(Protocol):
         ...
 
 
-class Node:
-    node_type: Literal['Leaf', 'Inner']
-    leaf: Optional[LeafNode]
-    inner: Optional[InnerNode]
-
-    def __init__(
-        self,
-        node_type: Literal['Leaf', 'Inner'],
-        leaf: Optional[LeafNode],
-        inner: Optional[InnerNode]
-    ) -> None:
-        self.node_type = node_type
-        self.leaf = leaf
-        self.inner = inner
-
-        match self.node_type:
-            case 'Leaf':
-                assert self.leaf is not None
-            case 'Inner':
-                assert self.inner is not None
-
-    def split_leaf(self, discriminator: str) -> tuple[Node, Node]:
-        if self.node_type != 'Leaf':
-            raise ValueError("Can only call split_leaf on a LeafNode")
-
-
-
-
 class LeafNode(NodeProtocol):
     state: Optional[State]
 

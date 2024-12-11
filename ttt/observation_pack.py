@@ -1,7 +1,7 @@
 from typing import NewType
 
 from state import State, Hypothesis
-from node import LeafNode, NodeProtocol
+from new_node import Node
 from tt import Teacher
 from transition import NonTreeTransition, TreeTransition
 
@@ -9,18 +9,17 @@ class ObservationPack:
     alphabet: str
     teacher: Teacher
     hypothesis: Hypothesis
-    dtree: NodeProtocol
+    dtree: Node
 
     def __init__(self, teacher: Teacher, alphabet: str):
         self.alphabet = alphabet
         self.teacher = teacher
 
-        t0, t1 = NodeProtocol.make_leaf(), NodeProtocol.make_leaf()
-        self.dtree = NodeProtocol.make_inner("", (t0, t1))
+        t0, t1 = Node.make_leaf(), Node.make_leaf()
+        self.dtree = Node.make_inner("", (t0, t1))
         self.hypothesis = Hypothesis(self.dtree, self.alphabet)
 
         leaf = self.dtree.sift("", self.teacher)
-        assert isinstance(leaf, LeafNode)
 
         if ("", True) in leaf.signature:
             self.hypothesis.make_final(self.hypothesis.start)
@@ -29,7 +28,7 @@ class ObservationPack:
 
         self.close_transitions()
 
-    def link(self, node: LeafNode, state: State) -> None:
+    def link(self, node: Node, state: State) -> None:
         node.state = state
         state.node = node
 
@@ -52,7 +51,7 @@ class ObservationPack:
                 new_tgt = transition.tgt.sift(transition.aseq, self.teacher)
                 transition.tgt = new_tgt
 
-                if isinstance(new_tgt, LeafNode) and new_tgt.state is None:
+                if isinstance(new_tgt, Node) and new_tgt.state is None:
                     new_transitions.append(transition)
 
             # create a new state (might create new open transitions)
@@ -90,7 +89,7 @@ class ObservationPack:
             self.link(l0, old_state)
             self.link(l1, new_state)
 
-    def learn(self, max_iterations: int = -1) -> tuple[Hypothesis, NodeProtocol]:
+    def learn(self, max_iterations: int = -1) -> tuple[Hypothesis, Node]:
         iterations = 0
         while not (equiv := self.teacher.is_equivalent(self.hypothesis))[0]:
             if max_iterations != -1 and iterations >= max_iterations:
