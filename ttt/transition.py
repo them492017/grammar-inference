@@ -1,6 +1,6 @@
 from typing import Protocol, Union, Optional
 
-from node import Node
+from node import NodeProtocol
 from state import State
 
 
@@ -12,19 +12,19 @@ class Transition(Protocol):
     aseq: str
     
     @property
-    def target(self) -> Optional[Union[Node, State]]:
+    def target(self) -> Optional[Union[NodeProtocol, State]]:
         ...
 
 
 class NonTreeTransition(Transition):
-    tgt: Optional[Node]
+    tgt: Optional[NodeProtocol]
 
-    def __init__(self, aseq: str, tgt: Optional[Node]) -> None:
+    def __init__(self, aseq: str, tgt: Optional[NodeProtocol]) -> None:
         self.aseq = aseq
         self.tgt = tgt
 
     @property
-    def target(self) -> Node:
+    def target(self) -> NodeProtocol:
         return self.tgt
 
 
