@@ -1,14 +1,16 @@
-from typing import NewType
+from __future__ import annotations
 
 from state import State, Hypothesis
-from new_node import Node
-from tt import Teacher
-from transition import NonTreeTransition, TreeTransition
+from node import Node
+from teach import Teacher, SimpleTeacher
+from transition import Transition
+from refiner import Refiner
 
 class ObservationPack:
     alphabet: str
     teacher: Teacher
     hypothesis: Hypothesis
+    refiner: Refiner
     dtree: Node
 
     def __init__(self, teacher: Teacher, alphabet: str):
@@ -24,6 +26,8 @@ class ObservationPack:
         if ("", True) in leaf.signature:
             self.hypothesis.make_final(self.hypothesis.start)
 
+        self.refiner = Refiner(self.teacher, self.hypothesis)
+
         self.link(leaf, self.hypothesis.start)
 
         self.close_transitions()
@@ -33,7 +37,9 @@ class ObservationPack:
         state.node = node
 
     def close_transitions(self) -> None:
-        new_transitions: list[NonTreeTransition] = []  # TODO: make pqueue sorted by tgt_node for fast filtering
+        self.dtree.print_tree()
+        print(f"Closing {len(self.hypothesis.open_transitions)} open transitions")
+        new_transitions: list[Transition] = []  # TODO: make pqueue sorted by tgt_node for fast filtering
         first_run = True
 
         while len(new_transitions) > 0 or first_run:
@@ -42,41 +48,50 @@ class ObservationPack:
             # close all open transitions
             while len(self.hypothesis.open_transitions) > 0:
                 transition = self.hypothesis.open_transitions.pop()
+                print(transition.__dict__, transition.target.__dict__)
 
-                if not (isinstance(transition, NonTreeTransition)
-                        and transition.tgt is not None):
-                    # transition is not closed
+                if transition.is_tree or (isinstance(transition.target, Node)
+                        and transition.target.is_leaf):
+                    # transition is already closed
+                    # check validity of assumption... could we be missing undiscovered states?
+                    print("skipping")
                     continue
 
-                new_tgt = transition.tgt.sift(transition.aseq, self.teacher)
-                transition.tgt = new_tgt
+                assert isinstance(transition.target, Node)
+                new_tgt = transition.target.sift(transition.aseq, self.teacher)
+                transition.target = new_tgt
 
-                if isinstance(new_tgt, Node) and new_tgt.state is None:
+                print(new_tgt)
+                if new_tgt.state is None:
                     new_transitions.append(transition)
+                else:
+                    print(new_tgt.state.aseq)
 
-            # create a new state (might create new open transitions)
-            if len(new_transitions) > 0:
-                transition = new_transitions.pop()
-                new_state = transition.make_tree()  # TODO: implement
-                new_transitions = [  # TODO: optimise with pqueue
-                    t for t in new_transitions if t.tgt != transition.tgt
-                ]
-                assert transition.tgt is not None  # invariant of make_tree
-                self.link(transition.tgt, new_state)
+                # create a new state (might create new open transitions)
+                if len(new_transitions) > 0:
+                    print(f"We have {len(new_transitions)} new transitions")
+                    transition = new_transitions.pop()
+                    old_tgt = transition.target
+                    assert isinstance(old_tgt, Node)
+                    new_state = transition.make_tree()
+                    new_transitions = [  # TODO: optimise with pqueue
+                        t for t in new_transitions if t.target != transition.target
+                    ]
+                    assert transition.target is not None  # invariant of make_tree
+                    print(transition, transition.target)
+                    self.link(old_tgt, new_state)  # type: ignore
+        self.dtree.print_tree()
+        self.hypothesis.print_hypothesis()
 
     def refine(self, counterexample: str) -> None:
-        u, a, v = self.decompose("", counterexample)
+        u, a, v = self.refiner.decompose(counterexample)
         self.split_state(u, a, v)
         self.close_transitions()
 
-    def decompose(self, prefix: str, counterexample: str) -> tuple[str, str, str]:
-        # TODO
-        ...
 
     def split_state(self, u: str, a: str, v: str) -> None:
         old_state = self.hypothesis.run(u)
         transition = old_state.transitions[a]
-        assert isinstance(transition, TreeTransition)
         new_state = transition.make_tree()
 
         assert old_state.node is not None
@@ -92,7 +107,7 @@ class ObservationPack:
     def learn(self, max_iterations: int = -1) -> tuple[Hypothesis, Node]:
         iterations = 0
         while not (equiv := self.teacher.is_equivalent(self.hypothesis))[0]:
-            if max_iterations != -1 and iterations >= max_iterations:
+            if iterations >= max_iterations > 0:
                 print("Reached maximum iterations")
                 return self.hypothesis, self.dtree
 
@@ -107,3 +122,12 @@ class ObservationPack:
         print(f"No counterexample found! Learning complete after {iterations} iterations.")
 
         return self.hypothesis, self.dtree
+
+
+if __name__ == "__main__":
+    alphabet = "ab"
+    pattern = "a*b*a"
+
+    teacher = SimpleTeacher(alphabet, pattern)
+    ob = ObservationPack(teacher, alphabet)
+    ob.learn()

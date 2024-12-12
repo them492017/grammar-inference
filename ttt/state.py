@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from transition import NonTreeTransition, Transition, TreeTransition
-from new_node import Node
+from transition import Transition
+
+if TYPE_CHECKING:
+    from node import Node
 
 
 class Hypothesis:
@@ -11,7 +13,7 @@ class Hypothesis:
     """
     alphabet: str
     root_node: Node
-    open_transitions: list[NonTreeTransition]
+    open_transitions: list[Transition]
     start: State
     states: set[State]
     final_states: set[State]
@@ -24,14 +26,23 @@ class Hypothesis:
         self.states = { self.start }
         self.final_states = set()
 
+    def print_hypothesis(self) -> None:
+        print(f"Initial state: q{self.start}")
+        print(f"Final states: {list(map(lambda state: f"q{state}", list(self.final_states)))}")
+        for state in list(self.states):
+            print(f"State: q{state} (aseq = {state.aseq})")
+            for a, transition in state.transitions.items():
+                assert isinstance(transition.target, State)
+                print(f"\t-{a}-> q{transition.target}")
+
     def add_state(self, aseq: str) -> State:
         state = State(self, aseq)
         state.transitions = {
-            a: NonTreeTransition(a, self.root_node) for a in self.alphabet
+            a: Transition(False, self, a, self.root_node) for a in self.alphabet
         }
         for t in state.transitions.values():
-            if isinstance(t, NonTreeTransition):
-                self.open_transitions.append(t)
+            # all trasitions are initially be nontree
+            self.open_transitions.append(t)
 
         return state
 
@@ -50,10 +61,13 @@ class Hypothesis:
         
         t = start.transitions[s[0]]
 
-        if isinstance(t, TreeTransition):
+        if t.is_tree and isinstance(t.target, State):
             return self.run(s[1:], t.target)
         else:
             raise ValueError("Only call run when all transitions are closed")
+
+    def evaluate(self, s: str):
+        return self.run(s) in self.final_states
 
 
 class State:
@@ -64,7 +78,7 @@ class State:
     node: Optional[Node]
     transitions: dict[str, Transition]
     aseq: str
-    # incoming_transition: TreeTransition
+    # incoming_transition: Transition
     
     def __init__(self, hypothesis: Hypothesis, aseq: str) -> None:
         self.hypothesis = hypothesis
