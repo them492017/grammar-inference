@@ -22,21 +22,25 @@ class Hypothesis:
         self.alphabet = alphabet
         self.root_node = root_node
         self.open_transitions = []
+        self.states = set()
         self.start = self.add_state("")
-        self.states = { self.start }
         self.final_states = set()
 
     def print_hypothesis(self) -> None:
-        print(f"Initial state: q{self.start}")
-        print(f"Final states: {list(map(lambda state: f"q{state}", list(self.final_states)))}")
+        print(f"Initial state: {self.start}")
+        print(f"Final states: {list(map(lambda state: f"{state}", list(self.final_states)))}")
         for state in list(self.states):
-            print(f"State: q{state} (aseq = {state.aseq})")
+            print(f"State: {state} (aseq = '{state.aseq}')")
             for a, transition in state.transitions.items():
-                assert isinstance(transition.target, State)
-                print(f"\t-{a}-> q{transition.target}")
+                assert transition.target_state is not None
+                if transition.is_tree:
+                    print(f"\t={a}=> {transition.target_state}")
+                else:
+                    print(f"\t-{a}-> {transition.target_state}")
 
     def add_state(self, aseq: str) -> State:
         state = State(self, aseq)
+        self.states.add(state)
         state.transitions = {
             a: Transition(False, self, a, self.root_node) for a in self.alphabet
         }
@@ -61,8 +65,8 @@ class Hypothesis:
         
         t = start.transitions[s[0]]
 
-        if t.is_tree and isinstance(t.target, State):
-            return self.run(s[1:], t.target)
+        if t.target_state is not None:
+            return self.run(s[1:], t.target_state)
         else:
             raise ValueError("Only call run when all transitions are closed")
 
@@ -74,14 +78,21 @@ class State:
     """
     A state in the spanning-tree hypothesis
     """
+    next_id: int = 0
+    id: int
     hypothesis: Hypothesis
-    node: Optional[Node]
+    node: Node
     transitions: dict[str, Transition]
     aseq: str
     # incoming_transition: Transition
     
     def __init__(self, hypothesis: Hypothesis, aseq: str) -> None:
+        self.id = State.next_id
+        State.next_id += 1
         self.hypothesis = hypothesis
         self.transitions = {}
-        self.node = None
         self.aseq = aseq
+
+    def __repr__(self) -> str:
+        assert self.node
+        return f"q{self.id}"

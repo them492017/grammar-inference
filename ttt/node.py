@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Optional, Any
 
 if TYPE_CHECKING:
-    from teach import Teacher
     from state import State
+    from teach import Teacher
+    from transition import Transition
 
 
 class Node:
@@ -12,6 +14,7 @@ class Node:
     parent: Optional[Node]
     _state: Optional[State]
     _discriminator: Optional[str]
+    incoming_non_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
 
     def __init__(self,
         is_leaf: bool,
@@ -25,6 +28,10 @@ class Node:
         self.parent = parent
         self._state = state
         self._discriminator = discriminator
+        self.incoming_non_tree = set()
+
+    def __repr__(self) -> str:
+        return f"Node<d='{self._discriminator}' state={self._state}>"
 
     @classmethod
     def make_leaf(cls) -> Node:
@@ -55,16 +62,22 @@ class Node:
             arrow = "->"
 
         if self.is_leaf:
-            if self.state is None:
-                print(f"{" " * 4 * level}{arrow} <None@{self}>")
-            else:
-                print(f"{" " * 4 * level}{arrow} <q{self.state}>")
+            print(f"{" " * 4 * level}{arrow} <{self}>")
         else:
             assert self.children[0]
             assert self.children[1]
             self.children[0].print_tree(0, level+1, property)
-            print(f"{" " * 4 * level}{arrow} <{self.discriminator}>")
+            print(f"{" " * 4 * level}{arrow} <{self}>")
             self.children[1].print_tree(1, level+1, property)
+
+    def __iter__(self) -> Any:
+        if self._children[0]:
+            for node in self._children[0]:
+                yield node
+        yield self
+        if self._children[1]:
+            for node in self._children[1]:
+                yield node
 
     @property
     def children(self) -> tuple[Optional[Node], Optional[Node]]:
@@ -118,4 +131,4 @@ class Node:
             return self
         subtree = int(teacher.is_member(s + self.discriminator))
         assert self.children[subtree] is not None
-        return self.children[subtree]  # type: ignore
+        return self.children[subtree].sift(s, teacher)  # type: ignore

@@ -30,7 +30,8 @@ class Refiner:
 
         # binary search (or some variation of it)
         # i = self.exponential_search(alpha, len(w))
-        i = self.partition_search(alpha, len(w))  # favours shorter suffixes
+        i = self.binary_search(alpha, len(w))  # favours shorter suffixes
+        print(i)
 
         return w[:i], w[i], w[i+1:]
 
