@@ -26,25 +26,28 @@ class SimpleTeacher(Teacher):
 
     alphabet: str
     regex: Pattern[str]
-    equivalence_query_counter: int
     epsilon: float
     delta: float
+    num_membership_queries: int
+    num_equivalence_queries: int
 
     def __init__(self, alphabet: str, pattern: str, epsilon: float = 0.1, delta: float = 0.1, seed: int = 1):
         self.alphabet = alphabet
         self.regex = re.compile(pattern)
-        self.equivalence_query_counter = 0
         self.epsilon = epsilon
         self.delta = delta
         random.seed(seed)
+        self.num_membership_queries = 0
+        self.num_equivalence_queries = 0
 
     def is_member(self, s: str) -> bool:
+        self.num_membership_queries += 1
         return self.regex.fullmatch(s) is not None
 
     def is_equivalent(self, hypothesis: Hypothesis, max_length: int = 10) -> tuple[bool, Optional[str]]:
-        self.equivalence_query_counter += 1
+        self.num_equivalence_queries += 1
         num_calls = math.ceil(1.0/self.epsilon * (math.log(1.0/self.delta) +
-                              self.equivalence_query_counter * math.log(2)))
+                              self.num_equivalence_queries * math.log(2)))
 
         for _ in range(num_calls):
             s = self.gen_random(max_length)
@@ -52,6 +55,16 @@ class SimpleTeacher(Teacher):
                 return False, s
 
         return True, None
+
+    def is_equivalent_exhaustive(self, hypothesis: Hypothesis, max_length: int = 10, s: str = "") -> bool:
+        if len(s) >= max_length:
+            return True
+
+        if self.is_member(s) != hypothesis.evaluate(s):
+            print(s, "is a counterexample")
+            return False
+
+        return all((self.is_equivalent_exhaustive(hypothesis, max_length, s + a)) for a in self.alphabet)
 
     def gen_random(self, max_length) -> str:
         # this seems inefficient
@@ -62,3 +75,9 @@ class SimpleTeacher(Teacher):
         length = math.floor(math.log(random_idx, len(self.alphabet)))
 
         return "".join(random.choice(self.alphabet) for _ in range(length))
+
+    def summarise(self) -> None:
+        print("=" * 40)
+        print("Teacher summary")
+        print(f"{self.num_membership_queries} membership queries")
+        print(f"{self.num_equivalence_queries} equivalence queries")

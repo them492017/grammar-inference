@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from state import State, Hypothesis
+from state import Hypothesis
 from node import Node
 from teach import Teacher, SimpleTeacher
 from transition import Transition
 from refiner import Refiner
 
-class ObservationPack:
+class TTTAlgorithm:
     alphabet: str
     teacher: Teacher
     hypothesis: Hypothesis
@@ -28,7 +28,7 @@ class ObservationPack:
 
         self.refiner = Refiner(self.teacher, self.hypothesis)
 
-        self.link(leaf, self.hypothesis.start)
+        leaf.link(self.hypothesis.start)
 
         print("=" * 40)
         print("Initial values")
@@ -36,19 +36,19 @@ class ObservationPack:
         print(leaf.signature)
         self.dtree.print_tree()
         print("=" * 40)
-        self.close_transitions()
+        self.close_transitions_soft()
 
-    def link(self, node: Node, state: State) -> None:
-        node.state = state
-        state.node = node
-
-    def close_transitions(self) -> None:
+    def close_transitions_soft(self) -> None:
         print("=" * 20)
         print("Starting CLOSE_TRANSITIONS")
         print("=" * 20)
         self.dtree.print_tree()
         for node in self.dtree:
             print(f"node: {node}, is_leaf: {node.is_leaf}")
+        print("Open transitions:")
+        print("=" * 5)
+        for transition in self.hypothesis.open_transitions:
+            print(transition)
         print("=" * 10)
         new_transitions: list[Transition] = []  # TODO: make pqueue sorted by tgt_node for fast filtering
         first_run = True
@@ -63,14 +63,13 @@ class ObservationPack:
                 if transition.is_tree or (isinstance(transition.target_node, Node)
                         and transition.target_node.is_leaf):
                     # transition is already closed
-                    # check validity of assumption... could we be missing undiscovered states?
                     print("skipping")
                     continue
 
                 print(transition, transition.aseq)
-                new_tgt = transition.target_node.sift(transition.aseq, self.teacher)
-                print(new_tgt)
+                new_tgt = transition.target_node.soft_sift(transition.aseq, self.teacher)
                 transition.target_node = new_tgt
+                print("New target", transition.target_node)
 
                 if new_tgt.is_leaf and new_tgt.state is None:
                     new_transitions.append(transition)
@@ -81,24 +80,33 @@ class ObservationPack:
                     old_tgt = transition.target_node
                     assert transition.target_state is None
 
-                    new_state = transition.make_tree(old_tgt)  # TODO: maybe link in make_tree function
-                    transition.target_node = old_tgt  # TODO: new + temporary
+                    print("New state for:", transition)
+
+                    transition.make_tree(old_tgt)
+                    transition.target_node = old_tgt
 
                     new_transitions = [  # TODO: optimise with pqueue
                         t for t in new_transitions if t.target_node != transition.target_node
                     ]
-                    self.link(old_tgt, new_state)
 
+        print("=" * 10)
+        print("Finshed CLOSE TRANSITIONS")
+        print("=" * 10)
         self.dtree.print_tree()
         for state in self.hypothesis.states:
-            print(f"{state}, {["\n" + str(state.transitions[a].__dict__) + "\n" for a in "ab"]}")
+            print(state)
+            for transition in state.transitions.values():
+                print(f"\t{transition}, node: {transition.target_node}")
         self.hypothesis.print_hypothesis()
         print("=" * 10)
 
     def refine(self, counterexample: str) -> None:
+        print("=" * 20)
+        print("Starting REFINE")
+        print("=" * 20)
         u, a, v = self.refiner.decompose(counterexample)
         self.split_state(u, a, v)
-        self.close_transitions()
+        self.close_transitions_soft()
 
 
     def split_state(self, u: str, a: str, v: str) -> None:
@@ -107,22 +115,25 @@ class ObservationPack:
 
         old_state = transition.target_state
         assert old_state is not None
+
         print(f"Splitting {old_state}")
         print(f"Transition is {predicted_state} --{a}-> {old_state}")
         print(transition.__dict__)
+        print(old_state.node)
+        print(old_state.node.incoming_non_tree)
 
         l0, l1 = old_state.node.split_leaf(v)
 
+        self.hypothesis.open_transitions += list(old_state.node.incoming_non_tree)
+
         if self.teacher.is_member(old_state.aseq + v):
-            new_state = transition.make_tree(l0)  # TODO: maybe link in make_tree function
+            transition.make_tree(l0)
             transition.target_node = l0
-            self.link(l0, new_state)
-            self.link(l1, old_state)
+            l1.link(old_state)
         else:
-            new_state = transition.make_tree(l1)  # TODO: maybe link in make_tree function
+            transition.make_tree(l1)
             transition.target_node = l1
-            self.link(l0, old_state)
-            self.link(l1, new_state)
+            l0.link(old_state)
 
     def learn(self, max_iterations: int = -1) -> tuple[Hypothesis, Node]:
         iterations = 0
@@ -152,10 +163,13 @@ class ObservationPack:
 
 if __name__ == "__main__":
     alphabet = "ab"
-    pattern = r"a*b*a"
+    pattern = r"(a|b)*a"
 
     teacher = SimpleTeacher(alphabet, pattern, epsilon=0.01, delta=0.01)
 
     print(f"Learning [{pattern}] over alphabet [{alphabet}]")
-    ob = ObservationPack(teacher, alphabet)
-    ob.learn()
+    ttt = TTTAlgorithm(teacher, alphabet)
+    hypothesis, dtree = ttt.learn()
+
+    print(f"Exhaustively checking the hypothesis...")
+    print(teacher.is_equivalent_exhaustive(hypothesis, max_length=18))

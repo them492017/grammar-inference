@@ -42,7 +42,7 @@ class Hypothesis:
         state = State(self, aseq)
         self.states.add(state)
         state.transitions = {
-            a: Transition(False, self, a, self.root_node) for a in self.alphabet
+            a: Transition(False, self, aseq + a, self.root_node) for a in self.alphabet
         }
         for t in state.transitions.values():
             # all trasitions are initially be nontree

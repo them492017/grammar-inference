@@ -34,8 +34,12 @@ class Transition:
         self.is_tree = is_tree
         self.hypothesis = hypothesis
         self.aseq = aseq
-        self.target_node = target
+        self._target_node = target
+        target.incoming_non_tree.add(self)
         self._target_state = None
+
+    def __repr__(self) -> str:
+        return f"Transition<aseq='{self.aseq}', is_tree: {self.is_tree}>"
     
     @property
     def target_node(self) -> Node:
@@ -45,6 +49,7 @@ class Transition:
     def target_node(self, tgt: Node):
         # TODO: had to remove since make_tree() doesnt set target node
         # assert not self.is_tree
+        self.target_node.incoming_non_tree.remove(self)
         tgt.incoming_non_tree.add(self)
         self._target_node = tgt
 
@@ -64,14 +69,13 @@ class Transition:
     def make_tree(self, node: Node) -> State:
         assert not self.is_tree
         state = self.hypothesis.add_state(self.aseq)
-        self.target_state = state
+        node.link(state)
+        self.target_node = node
+        self.target_state = state  # sets is_tree = True
 
         # if the node corresponding to this state is in the 1 subtree of the root,
         # it should be final
         if ("", True) in node.signature:
             self.hypothesis.make_final(state)
-
-        print("incoming", node.incoming_non_tree)
-        self.hypothesis.open_transitions += list(node.incoming_non_tree)
 
         return state

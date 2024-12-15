@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 class Node:
     is_leaf: bool
+    _is_temporary: bool
     _children: tuple[Optional[Node], Optional[Node]]
     parent: Optional[Node]
     _state: Optional[State]
@@ -24,6 +25,7 @@ class Node:
         discriminator: Optional[str] = None
     ) -> None:
         self.is_leaf = is_leaf
+        self._is_temporary = discriminator == ""
         self._children = children
         self.parent = parent
         self._state = state
@@ -80,6 +82,11 @@ class Node:
                 yield node
 
     @property
+    def is_temporary(self) -> bool:
+        assert not self.is_leaf
+        return self._is_temporary
+
+    @property
     def children(self) -> tuple[Optional[Node], Optional[Node]]:
         assert not self.is_leaf
         return self._children
@@ -117,18 +124,41 @@ class Node:
         else:
             return [(self.parent.discriminator, self.parent_value), *self.parent.signature]
 
+    def link(self, state: State) -> None:
+        self.state = state
+        state.node = self
+
     def split_leaf(self, discriminator: str) -> tuple[Node, Node]:
         assert self.is_leaf
         self.is_leaf = False
         self._state = None
         self._discriminator = discriminator
+
         children = (Node.make_leaf(), Node.make_leaf())
+        for child in children:
+            child.parent = self
         self._children = children
+
         return children
 
     def sift(self, s: str, teacher: Teacher) -> Node:
         if self.is_leaf:
             return self
+
         subtree = int(teacher.is_member(s + self.discriminator))
-        assert self.children[subtree] is not None
-        return self.children[subtree].sift(s, teacher)  # type: ignore
+        child = self.children[subtree]
+        assert child is not None
+
+        return child.sift(s, teacher)
+
+    def soft_sift(self, s: str, teacher: Teacher) -> Node:
+        if self.is_leaf or not self.is_temporary:
+            return self
+
+        subtree = int(teacher.is_member(s + self.discriminator))
+        child = self.children[subtree]
+
+        assert child is not None
+
+        # TODO: double chcek it should point to the block root
+        return child.soft_sift(s, teacher)
