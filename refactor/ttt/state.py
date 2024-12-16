@@ -70,8 +70,11 @@ class Hypothesis:
         else:
             raise ValueError("Only call run when all transitions are closed")
 
-    def evaluate(self, s: str):
-        return self.run(s) in self.final_states
+    def evaluate(self, s: str, start: Optional[State] = None):
+        if start is None:
+            start = self.start
+
+        return self.run(s, start=start) in self.final_states
 
 
 class State:

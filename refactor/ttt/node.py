@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Any
+from typing import TYPE_CHECKING, Iterable, Optional, Any, cast
 
 if TYPE_CHECKING:
     from state import State
@@ -12,7 +12,7 @@ class Node:
     is_leaf: bool
     _is_temporary: bool
     _children: tuple[Optional[Node], Optional[Node]]
-    parent: Optional[Node]
+    _parent: Optional[Node]
     _state: Optional[State]
     _discriminator: Optional[str]
     incoming_non_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
@@ -22,15 +22,16 @@ class Node:
         children: tuple[Optional[Node], Optional[Node]],
         parent: Optional[Node] = None,
         state: Optional[State] = None,
-        discriminator: Optional[str] = None
+        discriminator: Optional[str] = None,
     ) -> None:
         self.is_leaf = is_leaf
         self._is_temporary = discriminator == ""
         self._children = children
-        self.parent = parent
+        self._parent = parent
         self._state = state
         self._discriminator = discriminator
         self.incoming_non_tree = set()
+        self.depth = 0
 
     def __repr__(self) -> str:
         return f"Node<d='{self._discriminator}' state={self._state}>"
@@ -50,6 +51,35 @@ class Node:
             if child:
                 child.parent = new_node
         return new_node
+
+    @classmethod
+    def lca(cls, nodes: list[Node]) -> Node:
+        assert len(nodes) > 1
+
+        seen = set()
+        unique_nodes: list[Node] = []
+
+        min_depth = min(map(lambda node: node.depth, nodes))
+        for node in nodes:
+            while node.depth > min_depth:
+                seen.add(node)
+                node = node.parent
+                assert node is not None
+                if node in seen:
+                    break
+            if node not in seen:
+                unique_nodes.append(node)
+
+        while len(unique_nodes) > 1:
+            parent_nodes = list(set(map(lambda node: 
+                node.parent, unique_nodes)))
+            unique_parents = cast(list[Node], parent_nodes)  # parents cannot be None
+            parent_nodes = unique_parents
+
+        assert len(unique_nodes) == 1
+
+        return unique_nodes[0]
+
 
     def print_tree(self, child: int = -1, level: int = 0, property: str = ""):
         """
@@ -81,10 +111,22 @@ class Node:
             for node in self._children[1]:
                 yield node
 
+    def states(self) -> Iterable[State]:
+        return filter(lambda node: node.is_leaf, self.__iter__())
+
     @property
     def is_temporary(self) -> bool:
         assert not self.is_leaf
         return self._is_temporary
+
+    @property
+    def parent(self) -> Optional[Node]:
+        return self._parent
+
+    @parent.setter
+    def parent(self, node: Node) -> None:
+        self._parent = node
+        self.depth = node.depth + 1
 
     @property
     def children(self) -> tuple[Optional[Node], Optional[Node]]:

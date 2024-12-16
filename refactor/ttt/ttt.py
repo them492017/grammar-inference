@@ -1,7 +1,9 @@
 from __future__ import annotations
+from typing import Optional
 
 from state import Hypothesis
 from node import Node
+from state import State
 from teach import Teacher, SimpleTeacher
 from transition import Transition
 from refiner import Refiner
@@ -12,6 +14,7 @@ class TTTAlgorithm:
     hypothesis: Hypothesis
     refiner: Refiner
     dtree: Node
+    blocks: list[Node]
 
     def __init__(self, teacher: Teacher, alphabet: str):
         self.alphabet = alphabet
@@ -20,6 +23,7 @@ class TTTAlgorithm:
         t0, t1 = Node.make_leaf(), Node.make_leaf()
         self.dtree = Node.make_inner("", (t0, t1))
         self.hypothesis = Hypothesis(self.dtree, self.alphabet)
+        self.blocks = []
 
         leaf = self.dtree.sift("", self.teacher)
 
@@ -104,10 +108,61 @@ class TTTAlgorithm:
         print("=" * 20)
         print("Starting REFINE")
         print("=" * 20)
-        u, a, v = self.refiner.decompose(counterexample)
-        self.split_state(u, a, v)
-        self.close_transitions_soft()
+        first_run = True
+        inconsistent_state = self.hypothesis.start
 
+        while first_run or self.has_non_trivial_blocks():
+            first_run = False
+            u, a, v = self.refiner.decompose(inconsistent_state.aseq + counterexample)
+            self.split_state(u, a, v)
+            self.close_transitions_soft()
+
+            while inconsistency := self.has_trivial_inconcistency():
+                block, a = inconsistency
+                root = block  # we store a block as just its root node
+                successor_lca = Node.lca([state.transitions[a].target_state for state in block.states()])  # type: ignore
+                new_discriminator = a + successor_lca.discriminator
+
+                self.replace_blockroot(root, new_discriminator)
+                self.close_transitions_soft()
+
+            if self.has_non_trivial_blocks():
+                inconsistent_state, counterexample = self.find_nontrivial_inconcistency()
+
+
+    def has_non_trivial_blocks(self) -> bool:
+        for block in self.blocks:
+            if not block.is_leaf:
+                return True
+        return False
+
+    def has_trivial_inconcistency(self) -> Optional[tuple[Node, str]]:
+        successor_block = None
+        for block in self.blocks:
+            for a in self.alphabet:
+                for state in block.states():
+                    successor_node = state.transitions[a].target_node
+
+                    # TODO: store block label in node
+                    if successor_block is None:
+                        successor_block = successor_node.block 
+                    elif successor_node.block != successor_block:
+                        return block, a
+        
+        return None
+
+    def find_nontrivial_inconcistency(self) -> tuple[State, str]:
+        for block in self.blocks:
+            if not block.is_leaf:  # |B| > 1
+                for state in block.states():
+                    for discriminator, true_value in state.node.signature:
+                        if self.hypothesis.evaluate(discriminator, start=state) != true_value:
+                            return state, discriminator
+
+        raise ValueError("No nontrivial inconcistency was found")
+
+    def replace_blockroot(self, root: Node, discriminator: str) -> None:
+        ...
 
     def split_state(self, u: str, a: str, v: str) -> None:
         predicted_state = self.hypothesis.run(u)
