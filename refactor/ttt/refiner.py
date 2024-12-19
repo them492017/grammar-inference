@@ -14,7 +14,7 @@ class Refiner:
         self.teacher = teacher
         self.hypothesis = hypothesis
 
-    def decompose(self, w: str) -> tuple[str, str, str]:
+    def decompose(self, w: str, teacher: Teacher) -> tuple[str, str, str]:
         """
         Given a counterexample w, returns a decomposition (u, a, v) where
         len(a) == 1 and ...
@@ -22,11 +22,11 @@ class Refiner:
         # define prefix mapping
         def prefix_mapping(s: str, i: int) -> str:
             assert 0 <= i <= len(s)
-            return self.hypothesis.run(s[:i]).aseq + s[i:]
+            return self.hypothesis.run_non_deterministic(s[:i], w, teacher).aseq + s[i:]
 
         # define alpha
         def alpha(i: int) -> bool:
-            return self.teacher.is_member(prefix_mapping(w, i)) == self.hypothesis.evaluate(w)
+            return self.teacher.is_member(prefix_mapping(w, i)) == self.hypothesis.evaluate_non_deterministic(w, teacher)
 
         # binary search (or some variation of it)
         # i = self.exponential_search(alpha, len(w))

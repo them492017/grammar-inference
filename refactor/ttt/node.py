@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable, Optional, Any, cast
+from typing import TYPE_CHECKING, Generator, Iterable, Optional, Any, cast
 
 if TYPE_CHECKING:
     from state import State
@@ -15,7 +15,9 @@ class Node:
     _parent: Optional[Node]
     _state: Optional[State]
     _discriminator: Optional[str]
+    block: Optional[Node]
     incoming_non_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
+    depth: int
 
     def __init__(self,
         is_leaf: bool,
@@ -30,11 +32,29 @@ class Node:
         self._parent = parent
         self._state = state
         self._discriminator = discriminator
+        self.block = None
         self.incoming_non_tree = set()
         self.depth = 0
 
+    def replace(self, node: Node) -> None:
+        # replace the node with another in place
+        assert self.is_leaf == node.is_leaf
+
+        self.is_leaf = node.is_leaf
+        self._is_temporary = node._is_temporary
+        self._children = node._children
+        self._parent = node._parent
+        self._state = node._state
+        self._discriminator = node._discriminator
+        self.block = node.block
+        self.incoming_non_tree = node.incoming_non_tree
+        self.depth = node.depth
+
     def __repr__(self) -> str:
-        return f"Node<d='{self._discriminator}' state={self._state}>"
+        if self.block and not self.block.is_leaf:
+            return f"Node<d='{self._discriminator}' state={self._state} block={self.block.discriminator}>"
+        else:
+            return f"Node<d='{self._discriminator}' state={self._state}>"
 
     @classmethod
     def make_leaf(cls) -> Node:
@@ -54,31 +74,27 @@ class Node:
 
     @classmethod
     def lca(cls, nodes: list[Node]) -> Node:
-        assert len(nodes) > 1
-
-        seen = set()
-        unique_nodes: list[Node] = []
-
         min_depth = min(map(lambda node: node.depth, nodes))
+        nodes_in_layer: set[Node] = set()
+
         for node in nodes:
             while node.depth > min_depth:
-                seen.add(node)
                 node = node.parent
-                assert node is not None
-                if node in seen:
-                    break
-            if node not in seen:
-                unique_nodes.append(node)
 
-        while len(unique_nodes) > 1:
-            parent_nodes = list(set(map(lambda node: 
-                node.parent, unique_nodes)))
-            unique_parents = cast(list[Node], parent_nodes)  # parents cannot be None
-            parent_nodes = unique_parents
+                if node is None:
+                    raise ValueError("Null parent of non-root node")
 
-        assert len(unique_nodes) == 1
+            nodes_in_layer.add(node)
 
-        return unique_nodes[0]
+        while len(nodes_in_layer) > 1:
+            nodes_in_layer = {
+                node.parent for node in nodes_in_layer if node.parent is not None
+            }
+
+        if len(nodes_in_layer) == 0:
+            raise ValueError("LCA couldn't be computed")
+
+        return nodes_in_layer.pop()
 
 
     def print_tree(self, child: int = -1, level: int = 0, property: str = ""):
@@ -102,7 +118,7 @@ class Node:
             print(f"{" " * 4 * level}{arrow} <{self}>")
             self.children[1].print_tree(1, level+1, property)
 
-    def __iter__(self) -> Any:
+    def __iter__(self) -> Generator[Node]:
         if self._children[0]:
             for node in self._children[0]:
                 yield node
@@ -111,8 +127,11 @@ class Node:
             for node in self._children[1]:
                 yield node
 
-    def states(self) -> Iterable[State]:
-        return filter(lambda node: node.is_leaf, self.__iter__())
+    def states(self) -> Generator[State]:
+        for node in self:
+            if node.is_leaf and node.state is not None:
+                yield node.state
+
 
     @property
     def is_temporary(self) -> bool:
@@ -126,6 +145,7 @@ class Node:
     @parent.setter
     def parent(self, node: Node) -> None:
         self._parent = node
+        self.block = node.block
         self.depth = node.depth + 1
 
     @property
@@ -142,6 +162,8 @@ class Node:
     def state(self, state: State) -> None:
         assert self.is_leaf
         self._state = state
+        if self.block is None:
+            self.block = self
 
     @property
     def discriminator(self):

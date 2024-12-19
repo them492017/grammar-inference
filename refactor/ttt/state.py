@@ -5,6 +5,7 @@ from transition import Transition
 
 if TYPE_CHECKING:
     from node import Node
+    from teach import Teacher
 
 
 class Hypothesis:
@@ -75,6 +76,27 @@ class Hypothesis:
             start = self.start
 
         return self.run(s, start=start) in self.final_states
+
+    def run_non_deterministic(self, s: str, discriminator: str, teacher: Teacher, start: Optional[State] = None) -> State:
+        if start is None:
+            start = self.start
+
+        if s == "":
+            return start
+        
+        t = start.transitions[s[0]]
+
+        if t.target_state is None:
+            new_target = t.target_node.sift(discriminator, teacher)
+            t.target_node = new_target
+
+        return self.run_non_deterministic(s[1:], discriminator, teacher, t.target_state)
+
+    def evaluate_non_deterministic(self, s: str, teacher: Teacher, start: Optional[State] = None):
+        if start is None:
+            start = self.start
+
+        return self.run_non_deterministic(s, s, teacher, start=start) in self.final_states
 
 
 class State:

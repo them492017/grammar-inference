@@ -1,5 +1,8 @@
 from __future__ import annotations
 from typing import Optional
+import sys
+
+from collections import defaultdict
 
 from state import Hypothesis
 from node import Node
@@ -14,7 +17,11 @@ class TTTAlgorithm:
     hypothesis: Hypothesis
     refiner: Refiner
     dtree: Node
-    blocks: list[Node]
+    # blocks: list[Node]
+
+    @property
+    def blocks(self) -> list[Node]:
+        return list({state.node.block for state in self.dtree.states() if state.node.block is not None})
 
     def __init__(self, teacher: Teacher, alphabet: str):
         self.alphabet = alphabet
@@ -23,7 +30,7 @@ class TTTAlgorithm:
         t0, t1 = Node.make_leaf(), Node.make_leaf()
         self.dtree = Node.make_inner("", (t0, t1))
         self.hypothesis = Hypothesis(self.dtree, self.alphabet)
-        self.blocks = []
+        # self.blocks = []
 
         leaf = self.dtree.sift("", self.teacher)
 
@@ -101,26 +108,27 @@ class TTTAlgorithm:
             print(state)
             for transition in state.transitions.values():
                 print(f"\t{transition}, node: {transition.target_node}")
-        self.hypothesis.print_hypothesis()
+        # self.hypothesis.print_hypothesis()
         print("=" * 10)
 
     def refine(self, counterexample: str) -> None:
         print("=" * 20)
         print("Starting REFINE")
+        print("Blocks:", self.blocks)
         print("=" * 20)
         first_run = True
         inconsistent_state = self.hypothesis.start
 
         while first_run or self.has_non_trivial_blocks():
             first_run = False
-            u, a, v = self.refiner.decompose(inconsistent_state.aseq + counterexample)
+            u, a, v = self.refiner.decompose(inconsistent_state.aseq + counterexample, self.teacher)
             self.split_state(u, a, v)
             self.close_transitions_soft()
 
             while inconsistency := self.has_trivial_inconcistency():
                 block, a = inconsistency
                 root = block  # we store a block as just its root node
-                successor_lca = Node.lca([state.transitions[a].target_state for state in block.states()])  # type: ignore
+                successor_lca = Node.lca([state.transitions[a].target_node for state in block.states()])
                 new_discriminator = a + successor_lca.discriminator
 
                 self.replace_blockroot(root, new_discriminator)
@@ -129,6 +137,14 @@ class TTTAlgorithm:
             if self.has_non_trivial_blocks():
                 inconsistent_state, counterexample = self.find_nontrivial_inconcistency()
 
+        print("FINISHED REFINE")
+        self.dtree.print_tree()
+        for state in self.hypothesis.states:
+            print(state)
+            for transition in state.transitions.values():
+                print(f"\t{transition}, node: {transition.target_node}")
+        # self.hypothesis.print_hypothesis()
+        print("=" * 10)
 
     def has_non_trivial_blocks(self) -> bool:
         for block in self.blocks:
@@ -143,7 +159,6 @@ class TTTAlgorithm:
                 for state in block.states():
                     successor_node = state.transitions[a].target_node
 
-                    # TODO: store block label in node
                     if successor_block is None:
                         successor_block = successor_node.block 
                     elif successor_node.block != successor_block:
@@ -162,7 +177,92 @@ class TTTAlgorithm:
         raise ValueError("No nontrivial inconcistency was found")
 
     def replace_blockroot(self, root: Node, discriminator: str) -> None:
-        ...
+        # mark0: dict[Node, bool]
+        # inc0: dict[Node, list[Transition]]
+        # state0: dict[Node@leaf, State]
+        # repeat for 1
+        mark0: dict[Node, bool] = defaultdict(lambda: False)
+        mark1: dict[Node, bool] = defaultdict(lambda: False)
+        inc0: dict[Node, list[Transition]] = defaultdict(list)
+        inc1: dict[Node, list[Transition]] = defaultdict(list)
+        state0: dict[Node, State] = dict()
+        state1: dict[Node, State] = dict()
+
+        mark0[root] = True
+        mark1[root] = True
+
+        for node in root:
+            for transition in node.incoming_non_tree:
+                truth_val = self.teacher.is_member(transition.aseq + discriminator)
+                if truth_val == 0:
+                    inc0[node].append(transition)
+                    self.mark(node, mark0)
+                if truth_val == 1:
+                    inc1[node].append(transition)
+                    self.mark(node, mark1)
+
+            if node.is_leaf:
+                state = node.state
+                assert state is not None
+                truth_val = self.teacher.is_member(state.aseq + discriminator)
+                if truth_val == 0:
+                    state0[node] = state
+                    self.mark(node, mark0)
+                if truth_val == 1:
+                    state1[node] = state
+                    self.mark(node, mark1)
+
+        t0, t1 = self.extract(root, mark0, inc0, state0), self.extract(root, mark1, inc1, state1)
+        new_root = Node.make_inner(discriminator, (t0, t1))
+        # replace root with new_root
+        root.replace(new_root)
+
+        self.dtree.print_tree()
+
+    def extract(
+        self,
+        root: Node,
+        mark: dict[Node, bool],
+        inc: dict[Node, list[Transition]],
+        state: dict[Node, State]
+    ) -> Node:
+        if root.is_leaf:
+            if state[root] is not None:
+                res = Node.make_leaf()
+                res.state = state[root]
+                # TODO: set the block to the appropriate value
+            else:
+                return self.create_new(root, inc)
+        else:
+            c0, c1 = root.children
+            if c0 in mark and c1 in mark:
+                t0, t1 = self.extract(c0, mark, inc, state), self.extract(c1, mark, inc, state)
+                res = Node.make_inner(root.discriminator, (t0, t1))
+            elif c0 in mark:
+                inc[c0] += inc[root]
+                return self.extract(c0, mark, inc, state)
+            elif c1 in mark:
+                inc[c1] += inc[root]
+                return self.extract(c1, mark, inc, state)
+            else:
+                return self.create_new(root, inc)
+
+        res.incoming_non_tree = set(inc[root])  # TODO: make incoming a set 
+        return res
+
+    def mark(self, node: Node, mark: dict[Node, bool]) -> None:
+        while node not in mark:
+            assert node.parent is not None
+            mark[node] = True
+            node = node.parent
+
+    def create_new(self, node: Node, inc: dict[Node, list[Transition]]) -> Node:
+        transition = inc[node][0]
+        state = transition.make_tree(node)
+        new_node = Node.make_leaf()
+        new_node.state = state  # TODO: handle setting the block
+        new_node.incoming_non_tree = set(inc[node][1:])
+        return new_node
 
     def split_state(self, u: str, a: str, v: str) -> None:
         predicted_state = self.hypothesis.run(u)
@@ -220,11 +320,14 @@ if __name__ == "__main__":
     alphabet = "ab"
     pattern = r"(a|b)*a"
 
+    if len(sys.argv) == 2:
+        pattern = sys.argv[1]
+
     teacher = SimpleTeacher(alphabet, pattern, epsilon=0.01, delta=0.01)
 
     print(f"Learning [{pattern}] over alphabet [{alphabet}]")
     ttt = TTTAlgorithm(teacher, alphabet)
     hypothesis, dtree = ttt.learn()
 
-    print(f"Exhaustively checking the hypothesis...")
+    print("Exhaustively checking the hypothesis...")
     print(teacher.is_equivalent_exhaustive(hypothesis, max_length=18))
