@@ -126,6 +126,8 @@ class TTTAlgorithm:
             self.close_transitions_soft()
 
             while inconsistency := self.has_trivial_inconcistency():
+                print("=" * 20)
+                print("Starting DISCRIMINATOR_FINALISATION")
                 block, a = inconsistency
                 root = block  # we store a block as just its root node
                 successor_lca = Node.lca([state.transitions[a].target_node for state in block.states()])
@@ -153,9 +155,9 @@ class TTTAlgorithm:
         return False
 
     def has_trivial_inconcistency(self) -> Optional[tuple[Node, str]]:
-        successor_block = None
         for block in self.blocks:
             for a in self.alphabet:
+                successor_block = None
                 for state in block.states():
                     successor_node = state.transitions[a].target_node
 
@@ -167,20 +169,25 @@ class TTTAlgorithm:
         return None
 
     def find_nontrivial_inconcistency(self) -> tuple[State, str]:
+        print(self.blocks)
         for block in self.blocks:
             if not block.is_leaf:  # |B| > 1
                 for state in block.states():
+                    print(state, state.node.signature)
                     for discriminator, true_value in state.node.signature:
-                        if self.hypothesis.evaluate(discriminator, start=state) != true_value:
+                        if self.hypothesis.evaluate_non_deterministic(discriminator, self.teacher, start=state) != true_value:
                             return state, discriminator
 
         raise ValueError("No nontrivial inconcistency was found")
 
     def replace_blockroot(self, root: Node, discriminator: str) -> None:
-        # mark0: dict[Node, bool]
-        # inc0: dict[Node, list[Transition]]
-        # state0: dict[Node@leaf, State]
-        # repeat for 1
+        print("=" * 20)
+        print("Starting REPLACE_BLOCKROOT with new discriminator", discriminator)
+        print("Block:")
+        root.print_tree()
+        self.hypothesis.print_hypothesis_transitions()
+
+
         mark0: dict[Node, bool] = defaultdict(lambda: False)
         mark1: dict[Node, bool] = defaultdict(lambda: False)
         inc0: dict[Node, list[Transition]] = defaultdict(list)
@@ -217,6 +224,12 @@ class TTTAlgorithm:
         # replace root with new_root
         root.replace(new_root)
 
+        # TODO: do this on the fly
+        for node in t0:
+            node.block = t0
+        for node in t1:
+            node.block = t1
+
         self.dtree.print_tree()
 
     def extract(
@@ -226,12 +239,18 @@ class TTTAlgorithm:
         inc: dict[Node, list[Transition]],
         state: dict[Node, State]
     ) -> Node:
+        print("=" * 10)
+        print("Starting EXTRACT for", root)
+        print("mark", mark)
+        print("inc", inc)
+        print("state", state)
         if root.is_leaf:
             if state[root] is not None:
                 res = Node.make_leaf()
                 res.state = state[root]
                 # TODO: set the block to the appropriate value
             else:
+                # TODO: why does this have to have an incoming transition? is this an invariant of it being marked or something?
                 return self.create_new(root, inc)
         else:
             c0, c1 = root.children

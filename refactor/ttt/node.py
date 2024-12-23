@@ -27,7 +27,7 @@ class Node:
         discriminator: Optional[str] = None,
     ) -> None:
         self.is_leaf = is_leaf
-        self._is_temporary = discriminator == ""
+        self._is_temporary = discriminator != ""
         self._children = children
         self._parent = parent
         self._state = state
@@ -52,7 +52,7 @@ class Node:
 
     def __repr__(self) -> str:
         if self.block and not self.block.is_leaf:
-            return f"Node<d='{self._discriminator}' state={self._state} block={self.block.discriminator}>"
+            return f"Node<d={self._is_temporary}'{self._discriminator}' state={self._state} block={self.block.discriminator}>"
         else:
             return f"Node<d='{self._discriminator}' state={self._state}>"
 
@@ -94,6 +94,7 @@ class Node:
         if len(nodes_in_layer) == 0:
             raise ValueError("LCA couldn't be computed")
 
+        print(f"lca of {nodes} is {list(nodes_in_layer)[0]}")
         return nodes_in_layer.pop()
 
 

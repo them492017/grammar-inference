@@ -39,6 +39,14 @@ class Hypothesis:
                 else:
                     print(f"\t-{a}-> {transition.target_state}")
 
+    def print_hypothesis_transitions(self) -> None:
+        print(f"Initial state: {self.start}")
+        print(f"Final states: {list(map(lambda state: f"{state}", list(self.final_states)))}")
+        for state in list(self.states):
+            print(f"State: {state} (aseq = '{state.aseq}')")
+            for a, transition in state.transitions.items():
+                print(f"\t-{a}-> {transition.target_node}")
+
     def add_state(self, aseq: str) -> State:
         state = State(self, aseq)
         self.states.add(state)
@@ -78,6 +86,7 @@ class Hypothesis:
         return self.run(s, start=start) in self.final_states
 
     def run_non_deterministic(self, s: str, discriminator: str, teacher: Teacher, start: Optional[State] = None) -> State:
+        print(start, s)
         if start is None:
             start = self.start
 
@@ -86,7 +95,7 @@ class Hypothesis:
         
         t = start.transitions[s[0]]
 
-        if t.target_state is None:
+        if not t.target_node.is_leaf:
             new_target = t.target_node.sift(discriminator, teacher)
             t.target_node = new_target
 
