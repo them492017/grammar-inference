@@ -4,12 +4,14 @@ import sys
 
 from collections import defaultdict
 
-from state import Hypothesis
+from print import print
+from state import Hypothesis, visualize_dfa
 from node import Node
 from state import State
 from teach import Teacher, SimpleTeacher
 from transition import Transition
 from refiner import Refiner
+
 
 class TTTAlgorithm:
     alphabet: str
@@ -21,6 +23,9 @@ class TTTAlgorithm:
 
     @property
     def blocks(self) -> list[Node]:
+        # print(
+        #     list({(state, state.node.block) for state in self.dtree.states() if state.node.block is not None})
+        # )
         return list({state.node.block for state in self.dtree.states() if state.node.block is not None})
 
     def __init__(self, teacher: Teacher, alphabet: str):
@@ -169,7 +174,10 @@ class TTTAlgorithm:
         return None
 
     def find_nontrivial_inconcistency(self) -> tuple[State, str]:
+        self.dtree.print_tree()
         print(self.blocks)
+        for state in self.hypothesis.states:
+            print(state, state.node, state.node.block)
         for block in self.blocks:
             if not block.is_leaf:  # |B| > 1
                 for state in block.states():
@@ -186,7 +194,6 @@ class TTTAlgorithm:
         print("Block:")
         root.print_tree()
         self.hypothesis.print_hypothesis_transitions()
-
 
         mark0: dict[Node, bool] = defaultdict(lambda: False)
         mark1: dict[Node, bool] = defaultdict(lambda: False)
@@ -219,16 +226,36 @@ class TTTAlgorithm:
                     state1[node] = state
                     self.mark(node, mark1)
 
-        t0, t1 = self.extract(root, mark0, inc0, state0), self.extract(root, mark1, inc1, state1)
+        t0 = self.extract(root, mark0, inc0, state0)
+        t1 = self.extract(root, mark1, inc1, state1)
         new_root = Node.make_inner(discriminator, (t0, t1))
         # replace root with new_root
-        root.replace(new_root)
+        root.replace_with_final(new_root)
+        t0.parent = root
+        t1.parent = root
 
         # TODO: do this on the fly
+        print(t0, t1)
         for node in t0:
+            print(node)
             node.block = t0
+            if node.is_leaf and node.state:
+                node.link(node.state)
+            if not node.is_leaf:
+                if node.children[0]:
+                    node.children[0].parent = node
+                if node.children[1]:
+                    node.children[1].parent = node
         for node in t1:
+            print(node)
             node.block = t1
+            if node.is_leaf and node.state:
+                node.link(node.state)
+            if not node.is_leaf:
+                if node.children[0]:
+                    node.children[0].parent = node
+                if node.children[1]:
+                    node.children[1].parent = node
 
         self.dtree.print_tree()
 
@@ -245,7 +272,7 @@ class TTTAlgorithm:
         print("inc", inc)
         print("state", state)
         if root.is_leaf:
-            if state[root] is not None:
+            if root in state:
                 res = Node.make_leaf()
                 res.state = state[root]
                 # TODO: set the block to the appropriate value
@@ -277,6 +304,7 @@ class TTTAlgorithm:
 
     def create_new(self, node: Node, inc: dict[Node, list[Transition]]) -> Node:
         transition = inc[node][0]
+        print("Incoming:", list(inc.values()))
         state = transition.make_tree(node)
         new_node = Node.make_leaf()
         new_node.state = state  # TODO: handle setting the block
@@ -345,8 +373,20 @@ if __name__ == "__main__":
     teacher = SimpleTeacher(alphabet, pattern, epsilon=0.01, delta=0.01)
 
     print(f"Learning [{pattern}] over alphabet [{alphabet}]")
-    ttt = TTTAlgorithm(teacher, alphabet)
-    hypothesis, dtree = ttt.learn()
+    try:
+        ttt = TTTAlgorithm(teacher, alphabet)
+        hypothesis, dtree = ttt.learn()
+    except AssertionError as e:
+        print("=" * 50)
+        print("Could not learn language")
+        raise e
 
     print("Exhaustively checking the hypothesis...")
-    print(teacher.is_equivalent_exhaustive(hypothesis, max_length=18))
+    if not teacher.is_equivalent_exhaustive(hypothesis, max_length=18):
+        raise ValueError("Hypothesis was not correct")
+
+    print("Results")
+    print("=" * 20)
+    dtree.print_tree()
+    hypothesis.print_hypothesis()
+    visualize_dfa(hypothesis, filename=pattern)

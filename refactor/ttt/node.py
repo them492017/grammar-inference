@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generator, Iterable, Optional, Any, cast
+from typing import TYPE_CHECKING, Generator, Optional
+
+from print import print
+
 
 if TYPE_CHECKING:
     from state import State
@@ -16,7 +19,7 @@ class Node:
     _state: Optional[State]
     _discriminator: Optional[str]
     block: Optional[Node]
-    incoming_non_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
+    _incoming_non_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
     depth: int
 
     def __init__(self,
@@ -27,34 +30,46 @@ class Node:
         discriminator: Optional[str] = None,
     ) -> None:
         self.is_leaf = is_leaf
-        self._is_temporary = discriminator != ""
+        self._is_temporary = discriminator != "" and not self.is_leaf
+        print("new node is temporary:", self._is_temporary)
         self._children = children
         self._parent = parent
         self._state = state
         self._discriminator = discriminator
         self.block = None
-        self.incoming_non_tree = set()
+        self._incoming_non_tree = set()
         self.depth = 0
 
-    def replace(self, node: Node) -> None:
+    def replace_with_final(self, node: Node) -> None:
         # replace the node with another in place
         assert self.is_leaf == node.is_leaf
 
         self.is_leaf = node.is_leaf
-        self._is_temporary = node._is_temporary
+        self._is_temporary = False
+        self.block = None
+
         self._children = node._children
-        self._parent = node._parent
         self._state = node._state
         self._discriminator = node._discriminator
-        self.block = node.block
-        self.incoming_non_tree = node.incoming_non_tree
-        self.depth = node.depth
+        self._incoming_non_tree = node._incoming_non_tree
+
+        # self._parent = node._parent
+        # self.depth = node.depth
+
+    # def __repr__(self) -> str:
+    #     base = f"Node<d={"~" if self._is_temporary else ""}'{self._discriminator}' state={self._state}"
+    #     if self.block and not self.block.is_leaf:
+    #         return base + f" block={self.block._discriminator}>"
+    #     elif self.block:
+    #         return base + f" block={self.block._state}>"
+    #     else:
+    #         return base + ">"
 
     def __repr__(self) -> str:
-        if self.block and not self.block.is_leaf:
-            return f"Node<d={self._is_temporary}'{self._discriminator}' state={self._state} block={self.block.discriminator}>"
+        if self.is_leaf:
+            return f"Node<{self.state}>"
         else:
-            return f"Node<d='{self._discriminator}' state={self._state}>"
+            return f"Node<{self.discriminator}>"
 
     @classmethod
     def make_leaf(cls) -> Node:
@@ -78,6 +93,7 @@ class Node:
         nodes_in_layer: set[Node] = set()
 
         for node in nodes:
+            print(node, node.depth)
             while node.depth > min_depth:
                 node = node.parent
 
@@ -92,15 +108,15 @@ class Node:
             }
 
         if len(nodes_in_layer) == 0:
-            raise ValueError("LCA couldn't be computed")
+            raise ValueError(f"LCA of {nodes} couldn't be computed")
 
         print(f"lca of {nodes} is {list(nodes_in_layer)[0]}")
         return nodes_in_layer.pop()
 
 
-    def print_tree(self, child: int = -1, level: int = 0, property: str = ""):
+    def print_tree(self, child: int = -1, level: int = 0):
         """
-        A method that outputs a discrimination tree rooted at `self`. Adapted from
+        A method that outputs a discrimination tree rooted at `self`. From
         https://stackoverflow.com/questions/34012886/print-binary-tree-level-by-level-in-python
         """
         if child == 1:
@@ -111,15 +127,15 @@ class Node:
             arrow = "->"
 
         if self.is_leaf:
-            print(f"{" " * 4 * level}{arrow} <{self}>")
+            print(f"{" " * 4 * level}{arrow} {self}")
         else:
             assert self.children[0]
             assert self.children[1]
-            self.children[0].print_tree(0, level+1, property)
-            print(f"{" " * 4 * level}{arrow} <{self}>")
-            self.children[1].print_tree(1, level+1, property)
+            self.children[0].print_tree(0, level+1)
+            print(f"{" " * 4 * level}{arrow} {self}")
+            self.children[1].print_tree(1, level+1)
 
-    def __iter__(self) -> Generator[Node]:
+    def __iter__(self) -> Generator[Node, None, None]:
         if self._children[0]:
             for node in self._children[0]:
                 yield node
@@ -128,11 +144,10 @@ class Node:
             for node in self._children[1]:
                 yield node
 
-    def states(self) -> Generator[State]:
+    def states(self) -> Generator[State, None, None]:
         for node in self:
             if node.is_leaf and node.state is not None:
                 yield node.state
-
 
     @property
     def is_temporary(self) -> bool:
@@ -145,9 +160,12 @@ class Node:
 
     @parent.setter
     def parent(self, node: Node) -> None:
+        print(f"Setting parent of {self}")
+        print(self.parent)
         self._parent = node
         self.block = node.block
         self.depth = node.depth + 1
+        print(self.parent)
 
     @property
     def children(self) -> tuple[Optional[Node], Optional[Node]]:
@@ -189,6 +207,16 @@ class Node:
         else:
             return [(self.parent.discriminator, self.parent_value), *self.parent.signature]
 
+    @property
+    def incoming_non_tree(self) -> set[Transition]:
+        return self._incoming_non_tree
+
+    @incoming_non_tree.setter
+    def incoming_non_tree(self, inc: set[Transition]) -> set[Transition]:
+        for t in inc:
+            t.target_node = self
+        return self._incoming_non_tree
+
     def link(self, state: State) -> None:
         self.state = state
         state.node = self
@@ -196,6 +224,7 @@ class Node:
     def split_leaf(self, discriminator: str) -> tuple[Node, Node]:
         assert self.is_leaf
         self.is_leaf = False
+        self._is_temporary = True
         self._state = None
         self._discriminator = discriminator
 
@@ -217,7 +246,7 @@ class Node:
         return child.sift(s, teacher)
 
     def soft_sift(self, s: str, teacher: Teacher) -> Node:
-        if self.is_leaf or not self.is_temporary:
+        if self.is_leaf or self.is_temporary:
             return self
 
         subtree = int(teacher.is_member(s + self.discriminator))

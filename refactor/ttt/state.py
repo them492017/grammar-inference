@@ -2,6 +2,9 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 from transition import Transition
+from print import print
+
+from graphviz import Digraph
 
 if TYPE_CHECKING:
     from node import Node
@@ -130,3 +133,41 @@ class State:
     def __repr__(self) -> str:
         assert self.node
         return f"q{self.id}"
+
+
+
+def visualize_dfa(hypothesis: Hypothesis, filename='dfa', format='png'):
+    """
+    Visualize a DFA represented by the Hypothesis class. (From chatgpt)
+    
+    Args:
+        hypothesis (Hypothesis): The DFA to visualize.
+        filename (str): Output filename (without extension).
+        format (str): Output file format (e.g., png, pdf).
+    """
+    # Initialize a directed graph
+    dot = Digraph(name="DFA", format=format)
+    dot.attr(rankdir="LR")  # Left-to-right orientation
+    dot.attr("node", shape="circle")  # States are circular by default
+
+    # Add states
+    for state in hypothesis.states:
+        shape = "doublecircle" if state in hypothesis.final_states else "circle"
+        dot.node(str(state.id), shape=shape, label=str(state))
+
+    # Add transitions
+    for state in hypothesis.states:
+        for symbol, transition in state.transitions.items():
+            assert transition.target_state is not None
+            dot.edge(str(state.id), str(transition.target_state.id), label=symbol)
+
+    # Mark the start state
+    dot.node("start", shape="plaintext", label="")
+    dot.edge("start", str(hypothesis.start.id))
+
+    # Add a title
+    dot.attr(label=filename, labelloc="t", fontsize="20")
+
+    # Save and render the graph
+    dot.render(filename, cleanup=True)
+    print(f"DFA visualized and saved as {filename}.{format}")
