@@ -1,9 +1,9 @@
 from __future__ import annotations
-from typing import Generic, Protocol, TypeVar
+from typing import TypeVar
 from pprint import pprint
 import sys
 
-from graphviz import Digraph
+from dfa import NFA
 
 
 EMPTYSET = "\u2205"
@@ -13,143 +13,6 @@ ALPHABET = "ab"
 EXTENDED_ALPHABET = f"ab{EPSILON}"
 T = TypeVar("T")
 S = TypeVar("S")
-
-
-class Automaton(Protocol, Generic[T, S]):
-    """
-    T: type of a state
-    S: type of a state's transition table
-    """
-    start: T
-    states: set[T]
-    final: set[T]
-    transitions: dict[T, S]
-
-    def add_state(self, transitions: S) -> None:
-        ...
-
-    def make_final(self, state: T) -> None:
-        assert state in self.states
-        self.final.add(state)
-
-    def update(self, state: T, transitions: S) -> None:
-        self.transitions[state] = transitions
-
-    def evaluate(self, s: str) -> bool:
-        ...
-
-
-class NFA(Automaton[int, dict[str, set[int]]]):
-    next_state: int
-
-    def __init__(self) -> None:
-        self.transitions = {}
-        self.start = 0
-        self.states = { self.start }
-        self.final = set()
-        self.next_state = 1
-
-    def add_state(self, transitions: dict[str, set[int]]) -> None:
-        self.states.add(self.next_state)
-        self.transitions[self.next_state] = transitions
-        self.next_state += 1
-        
-    def evaluate(self, s: str) -> bool:
-        curr = { self.start }
-        for c in s:
-            curr = set().union(
-                *(self.transitions[state][c] for state in curr)
-            )
-        return len(curr & self.final) > 0
-
-    def insert(self, state: int, nfa: NFA) -> None:  # TODO: maybe refactor to use len instead of self.next_state
-        """
-        Assumes NFAs have their states numbered monotonically.
-
-        nfa states [1..n] -> self states [self.next_state..self.next_state + n - 1]
-        nfa state [0] -> self state [state]
-
-        for states [1..n], all transitions are inherited in self
-        for state [0], all transitions also inherited to self
-            the existing transitions for self [state] are passed on to the final states of nfa
-
-        if self [state] is final, all final states of nfa become final
-        regardless, self [state] should not be final anymore (unless final in nfa and is itself final)
-        """
-        print("RUNNING INSERT")
-        visualize_nfa(self, filename="a")
-        visualize_nfa(nfa, filename="b")
-        # add states
-        self.states |= set(range(self.next_state, self.next_state + nfa.next_state - 1))  # TODO: dont add extra state (one is shared)
-        # self.next_state += nfa.next_state - 1
-        print(self.states)
-        print(self.next_state)
-
-        # deal with final states
-        if state in self.final:
-            self.final.remove(state)
-            self.final |= {s + self.next_state - 1 for s in nfa.final}
-
-        # map nfa transitions to new values
-        nfa.transitions = {
-            state: {
-                char: set(map(lambda s: s + self.next_state - 1, targets)) for char, targets in transitions.items()
-            } for state, transitions in nfa.transitions.items()
-        }
-
-        # update transitions
-        new_transitions = {}
-        for s in range(1, nfa.next_state):
-            actual_state = s + self.next_state - 1
-            print("State", actual_state)
-            if s in nfa.final:
-                print(
-                    nfa.transitions[s],
-                    self.transitions[s]
-                )
-                new_transitions[actual_state] = self.join_transitions(
-                    nfa.transitions[s],
-                    self.transitions[s]
-                )
-                print("nonfinal - (Transitions ->", new_transitions[actual_state])
-            else:
-                new_transitions[actual_state] = nfa.transitions[s]
-                print("Transitions ->", new_transitions[actual_state])
-
-        new_transitions[state] = nfa.transitions[0]
-
-        self.transitions = {**self.transitions, **new_transitions}
-
-        visualize_nfa(self, "result")
-
-        self.next_state += nfa.next_state - 1  # TODO: move where this would make sense
-
-    def join_transitions(self, a: dict[str, set[int]], b: dict[str, set[int]]) -> dict[str, set[int]]:
-        return {
-            char: a.get(char, set()) | b.get(char, set()) for char in a.keys() | b.keys()
-        }
-
-
-class DFA(Automaton[int, dict[str, int]]):
-    next_state: int
-
-    def __init__(self) -> None:
-        self.transitions = {}
-        self.start = 0
-        self.states = { self.start }
-        self.final = set()
-        self.next_state = 1
-
-    def add_state(self, transitions: dict[str, int]) -> None:
-        self.states.add(self.next_state)
-        self.transitions[self.next_state] = transitions
-        self.next_state += 1
-
-    def evaluate(self, s: str) -> bool:
-        curr = self.start
-        for c in s:
-            curr = self.transitions[curr][c]
-        return curr in self.final
 
 
 class Regex:
@@ -365,47 +228,16 @@ class Star(Regex):
     def to_nfa(self) -> NFA:
         print(f"Converting {self} to an NFA")
         nfa = NFA()
-        nfa.make_final(0)
+        nfa.update(0, {
+            EPSILON: {1}
+        })
         nfa.add_state({
             EPSILON: {1}
         })
+        nfa.make_final(0)
         nfa.make_final(1)
         nfa.insert(1, self.r.to_nfa())
         return nfa
-
-
-def visualize_nfa(automaton: NFA, filename='nfa', format='png'):
-    """
-    Visualize an NFA represented by the NFA class.
-
-    Args:
-        automaton (NFA): The NFA to visualize.
-        filename (str): Output filename (without extension).
-        format (str): Output file format (e.g., png, pdf).
-    """
-    # Initialize a directed graph
-    dot = Digraph(name="NFA", format=format)
-    dot.attr(rankdir="LR")  # Left-to-right orientation
-    dot.attr("node", shape="circle")  # States are circular by default
-
-    # Add states
-    for state in automaton.states:
-        shape = "doublecircle" if state in automaton.final else "circle"
-        dot.node(str(state), shape=shape, label=str(state))
-
-    # Add transitions
-    for state, transitions in automaton.transitions.items():
-        for symbol, targets in transitions.items():
-            for target in targets:
-                dot.edge(str(state), str(target), label=symbol)
-
-    # Mark the start state
-    dot.node("start", shape="plaintext", label="")
-    dot.edge("start", str(automaton.start))
-
-    # Save and render the graph
-    dot.render(filename, cleanup=True)
-    print(f"NFA visualized and saved as {filename}.{format}")
 
 
 if __name__ == "__main__":
@@ -420,4 +252,19 @@ if __name__ == "__main__":
     nfa = regex.to_nfa()
     print(nfa.states, nfa.final)
     pprint(nfa.transitions)
-    visualize_nfa(nfa)
+    nfa.visualize("nfa")
+    new_nfa = nfa.remove_epsilon()
+    new_nfa.visualize("nfa_no_epsilon")
+    dfa = new_nfa.determinise()
+    dfa.visualize("dfa")
+    print(dfa.is_equivalent(dfa.complement()))
+    """
+    For regex a((a|b)*b)
+    - epsilon transition 5 -> 6 should exist...
+    """
+
+    dfac = dfa.complement()
+    dfac.visualize('complement')
+
+    dfa.intersection(dfac).visualize('intersection')
+    dfa.union(dfac).visualize('union')
