@@ -5,6 +5,7 @@ import sys
 from collections import defaultdict
 
 from print import print
+from ..regex_parser.regex import Regex
 from state import Hypothesis, visualize_dfa
 from node import Node
 from state import State
@@ -390,3 +391,9 @@ if __name__ == "__main__":
     dtree.print_tree()
     hypothesis.print_hypothesis()
     visualize_dfa(hypothesis, filename=pattern)
+
+    dfa = hypothesis.to_dfa()
+
+    regex = Regex.parse(pattern)
+    regex_dfa = regex.to_nfa().determinise()
+    print(f"Hypothesis is equivalent to dfa: {dfa.is_equivalent(regex_dfa)}")

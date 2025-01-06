@@ -6,6 +6,8 @@ from print import print
 
 from graphviz import Digraph
 
+from ..regex_parser.dfa import DFA
+
 if TYPE_CHECKING:
     from node import Node
     from teach import Teacher
@@ -109,6 +111,25 @@ class Hypothesis:
             start = self.start
 
         return self.run_non_deterministic(s, s, teacher, start=start) in self.final_states
+
+    def to_dfa(self) -> DFA:
+        dfa = DFA()
+
+        dfa.start = self.start.id
+        dfa.states = set(map(lambda state: state.id, self.states))
+        dfa.final = set(map(lambda state: state.id, self.final_states))
+        dfa.next_state = len(dfa.states)
+
+        for h_state in self.states:
+            d_state = h_state.id
+            dfa.transitions[d_state] = {}
+            for a, transition in h_state.transitions.items():
+                assert transition.target_state  # otherwise not a DFA
+                dfa.transitions[d_state][a] = transition.target_state.id
+
+        # TODO: do I need to deal with empty transitions?
+
+        return dfa
 
 
 class State:
