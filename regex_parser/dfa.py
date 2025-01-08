@@ -138,11 +138,16 @@ class NFA(Automaton[int, dict[str, set[int]]]):
         nfa.next_state = self.next_state
 
         for state in self.states:
+            print(f"On state {state}")
             seen: set[int] = set()
+            final = [False]
             # dfs to get all states reachable by exactly one non-epsilon transition
             def helper(curr: int) -> None:
                 if curr not in seen:
                     seen.add(curr)
+                    print(f"\tCurr state {curr} is final: {curr in self.final}")
+                    if curr in self.final:
+                        final[0] = True
                     for a, targets in self.transitions[curr].items():
                         if a == EPSILON:
                             for target in targets:
@@ -151,6 +156,8 @@ class NFA(Automaton[int, dict[str, set[int]]]):
                             nfa.transitions[state][a] = \
                                 nfa.transitions[state].get(a, set()) | targets
             helper(state)
+            if final[0]:
+                nfa.final.add(state)
 
         nfa.trim_unreachable()
 
@@ -207,22 +214,25 @@ class NFA(Automaton[int, dict[str, set[int]]]):
         """
         Deteminises the NFA via a subset construction
         """
+        self_without_epsilon = self.remove_epsilon()
+        self_without_epsilon.visualize("no_epsilon")
+
         def powerset(s: set[T]) -> list[tuple[T, ...]]:
             return list(chain.from_iterable(set(combinations(s, r)) for r in range(len(s)+1)))
 
         dfa = DFA()
 
-        subsets = powerset(self.states)
+        subsets = powerset(self_without_epsilon.states)
 
-        dfa.start = subsets.index((self.start,))
+        dfa.start = subsets.index((self_without_epsilon.start,))
         dfa.states = set(range(len(subsets)))
-        dfa.final = set(i for i in dfa.states if len(set(subsets[i]) & self.final) > 0)
+        dfa.final = set(i for i in dfa.states if len(set(subsets[i]) & self_without_epsilon.final) > 0)
         dfa.transitions = {state: dict() for state in dfa.states}
         dfa.next_state = len(subsets)
 
         for state, subset in enumerate(subsets):
             for a in ALPHABET:
-                result = set().union(*(self.transitions[s].get(a, set()) for s in subset))
+                result = set().union(*(self_without_epsilon.transitions[s].get(a, set()) for s in subset))
                 print(f"{subsets[state]} --{a}-> {subsets[subsets.index(tuple(sorted(result)))]}")
                 dfa.transitions[state][a] = subsets.index(
                     tuple(sorted(result))
@@ -303,10 +313,6 @@ class DFA(Automaton[int, dict[str, int]]):
         sym_diff = self_not_d.union(not_self_d)
         sym_diff.trim_unreachable()
 
-        self_not_d.visualize('not d2')
-        not_self_d.visualize('not d1')
-        sym_diff.visualize('sym diff')
-
         return sym_diff.is_empty()
 
     def complement(self) -> DFA:
@@ -367,6 +373,8 @@ class DFA(Automaton[int, dict[str, int]]):
             curr = queue.popleft()
             if curr in self.final:
                 return False, aseq[curr]
+            if curr in seen:
+                continue
             seen.add(curr)
 
             for a in ALPHABET:

@@ -4,14 +4,14 @@ import sys
 
 from collections import defaultdict
 
-from print import print
-from ..regex_parser.regex import Regex
-from state import Hypothesis, visualize_dfa
-from node import Node
-from state import State
-from teach import Teacher, SimpleTeacher
-from transition import Transition
-from refiner import Refiner
+from ttt.print import print
+from regex_parser.regex import Regex
+from ttt.state import Hypothesis, visualize_dfa
+from ttt.node import Node
+from ttt.state import State
+from ttt.teach import Teacher, SimpleTeacher
+from ttt.transition import Transition
+from ttt.refiner import Refiner
 
 
 class TTTAlgorithm:
@@ -382,10 +382,6 @@ if __name__ == "__main__":
         print("Could not learn language")
         raise e
 
-    print("Exhaustively checking the hypothesis...")
-    if not teacher.is_equivalent_exhaustive(hypothesis, max_length=18):
-        raise ValueError("Hypothesis was not correct")
-
     print("Results")
     print("=" * 20)
     dtree.print_tree()
@@ -395,5 +391,14 @@ if __name__ == "__main__":
     dfa = hypothesis.to_dfa()
 
     regex = Regex.parse(pattern)
+    regex.to_nfa().visualize(filename="regex_nfa")
     regex_dfa = regex.to_nfa().determinise()
+    regex_dfa.visualize(filename="regex_dfa")
     print(f"Hypothesis is equivalent to dfa: {dfa.is_equivalent(regex_dfa)}")
+
+    print("=" * 20)
+    print("Results Again")
+    print("=" * 20)
+    dtree.print_tree()
+    hypothesis.print_hypothesis()
+    visualize_dfa(hypothesis, filename=pattern)

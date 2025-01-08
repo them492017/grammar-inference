@@ -3,7 +3,7 @@ from typing import TypeVar
 from pprint import pprint
 import sys
 
-from dfa import NFA
+from regex_parser.dfa import NFA
 
 
 EMPTYSET = "\u2205"

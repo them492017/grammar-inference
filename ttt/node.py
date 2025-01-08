@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generator, Optional
 
-from print import print
+from ttt.print import print
 
 
 if TYPE_CHECKING:

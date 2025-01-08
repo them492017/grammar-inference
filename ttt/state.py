@@ -1,12 +1,12 @@
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
-from transition import Transition
-from print import print
+from ttt.transition import Transition
+from ttt.print import print
 
 from graphviz import Digraph
 
-from ..regex_parser.dfa import DFA
+from regex_parser.dfa import DFA
 
 if TYPE_CHECKING:
     from node import Node

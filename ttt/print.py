@@ -2,7 +2,7 @@ from pathlib import Path
 from inspect import currentframe, getframeinfo
 
 
-BASE_DIR = "/home/martin/Desktop/uni/2024/grammar-inference/refactor/ttt"
+BASE_DIR = "/home/martin/Desktop/uni/2024/grammar-inference/"
 
 
 def to_rel(full_path):

@@ -1,8 +1,6 @@
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
-from print import print
-
 if TYPE_CHECKING:
     from node import Node
     from state import Hypothesis, State

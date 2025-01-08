@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Callable, TYPE_CHECKING
 from math import floor, log
 
-from print import print
+from ttt.print import print
 
 if TYPE_CHECKING:
     from state import Hypothesis
