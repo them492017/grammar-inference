@@ -1,6 +1,9 @@
 from __future__ import annotations
 from typing import Optional, Protocol, Pattern, TYPE_CHECKING
 
+from regex_parser.dfa import DFA
+from regex_parser.regex import Regex
+
 import re
 import random
 import math
@@ -17,13 +20,30 @@ class Teacher(Protocol):
         ...
 
 
+class PerfectTeacher(Teacher):
+    """
+    A perfect teacher class that uses a DFA based equivalence algorithm
+    to find counterexamples
+    """
+    alphabet: str
+    dfa: DFA
+
+    def __init__(self, alphabet: str, pattern: str) -> None:
+        self.alphabet = alphabet
+        self.dfa = Regex.parse(pattern).to_nfa().determinise()
+
+    def is_member(self, s: str) -> bool:
+        return self.dfa.evaluate(s)
+
+    def is_equivalent(self, hypothesis: Hypothesis) -> tuple[bool, Optional[str]]:
+        return self.dfa.is_equivalent(hypothesis.to_dfa())
+
 class SimpleTeacher(Teacher):
     """
     A simple teacher class that uses the built in evaluation capabilities
     of the Hypothesis class and applies it to uniformly random strings up to
     a certain maximum length.
     """
-
     alphabet: str
     regex: Pattern[str]
     equivalence_query_counter: int

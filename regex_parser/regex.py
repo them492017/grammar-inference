@@ -30,15 +30,18 @@ class Regex:
 
     @classmethod
     def parse(cls, s: str) -> Regex:
-        print("Parsing", s)
+        # print("Parsing", s)
 
         if len(s) == 0:
-            print(f"Found {Epsilon()}")
+            # print(f"Found {Epsilon()}")
             return Epsilon()
         if len(s) == 1:
+            if s == EPSILON:
+                # print(f"Found {Epsilon()}")
+                return Epsilon()
             if s not in ALPHABET:
                 raise ValueError(f"Character '{s}' is not in the alphabet")
-            print(f"Found {Char(s)}")
+            # print(f"Found {Char(s)}")
             return Char(s)
 
         if s[0] == "(":
@@ -59,26 +62,25 @@ class Regex:
         next_char = s[end_idx+1]
 
         if next_char == "|":
-            print(f"Found {symbol} | [something]")
+            # print(f"Found {symbol} | [something]")
             return Or(symbol, cls.parse(s[end_idx+2:]))
         elif next_char == "*":
             if len(s) == end_idx + 2:
-                print(f"Found {Star(symbol)}")
+                # print(f"Found {Star(symbol)}")
                 return Star(symbol)
             else:  # check this
-                print(f"Found {Star(symbol)} . [something]")
+                # print(f"Found {Star(symbol)} . [something]")
                 return And(Star(symbol), cls.parse(s[end_idx+2:]))
         elif next_char == "(":
-            print(f"Found {symbol} . [something]")
+            # print(f"Found {symbol} . [something]")
             return And(symbol, cls.parse(s[end_idx+2:-1]))
         else:
-            print(f"Found {symbol} . [something]")
+            # print(f"Found {symbol} . [something]")
             return And(symbol, cls.parse(s[end_idx+1:]))
 
 
     @classmethod
     def matching_idx(cls, s: str, i: int) -> int:
-        print("Matching Idx", s, i)
         if s[i] != "(":
             raise ValueError("Initial character is not '('")
 
@@ -90,7 +92,6 @@ class Regex:
             if c == ")":
                 depth -= 1
             if depth == 0:
-                print("Matching idx:", j)
                 return j
 
         raise ValueError("Not match found")
@@ -107,7 +108,6 @@ class Empty(Regex):
         return EMPTYSET
 
     def to_nfa(self) -> NFA:
-        print(f"Converting {self} to an NFA")
         return NFA()
 
 class Epsilon(Regex):
@@ -122,7 +122,6 @@ class Epsilon(Regex):
         return EPSILON
 
     def to_nfa(self) -> NFA:
-        print(f"Converting {self} to an NFA")
         nfa = NFA()
         nfa.add_state({
             a: {1} for a in ALPHABET
@@ -146,7 +145,6 @@ class Char(Regex):
         return self.char
 
     def to_nfa(self) -> NFA:
-        print(f"Converting {self} to an NFA")
         nfa = NFA()
         nfa.update(0, {
             a: {1 if a == self.char else 2} for a in ALPHABET
@@ -174,7 +172,6 @@ class Or(Regex):
         return f"({self.r1.to_syntax()})|({self.r2.to_syntax()})"
 
     def to_nfa(self) -> NFA:
-        print(f"Converting {self} to an NFA")
         nfa = NFA()
         nfa.update(0, {
             EPSILON: {1, 2}
@@ -201,7 +198,6 @@ class And(Regex):
         return f"({self.r1.to_syntax()})({self.r2.to_syntax()})"
 
     def to_nfa(self) -> NFA:
-        print(f"Converting {self} to an NFA")
         nfa = NFA()
         nfa.update(0, {
             EPSILON: {1}
@@ -226,7 +222,6 @@ class Star(Regex):
         return f"({self.r.to_syntax()})*"
 
     def to_nfa(self) -> NFA:
-        print(f"Converting {self} to an NFA")
         nfa = NFA()
         nfa.update(0, {
             EPSILON: {1}
