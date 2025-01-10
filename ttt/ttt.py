@@ -371,7 +371,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         pattern = sys.argv[1]
 
-    teacher = PerfectTeacher(alphabet, pattern)
+    teacher = SimpleTeacher(alphabet, pattern)
 
     print(f"Learning [{pattern}] over alphabet [{alphabet}]")
     try:
