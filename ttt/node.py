@@ -68,6 +68,8 @@ class Node:
     def __repr__(self) -> str:
         if self.is_leaf:
             return f"Node<{self.state}>"
+        elif self.is_temporary:
+            return f"Node<~{self.discriminator}>"
         else:
             return f"Node<{self.discriminator}>"
 

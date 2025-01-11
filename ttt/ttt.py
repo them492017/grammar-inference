@@ -9,7 +9,7 @@ from regex_parser.regex import Regex
 from ttt.state import Hypothesis, visualize_dfa
 from ttt.node import Node
 from ttt.state import State
-from ttt.teach import PerfectTeacher, Teacher, SimpleTeacher
+from ttt.teach import PerfectTeacher, SimpleDFATeacher, Teacher, SimpleTeacher
 from ttt.transition import Transition
 from ttt.refiner import Refiner
 
@@ -371,7 +371,8 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         pattern = sys.argv[1]
 
-    teacher = SimpleTeacher(alphabet, pattern)
+    # teacher = SimpleDFATeacher(alphabet, pattern, epsilon=0.00001, delta=0.00001)
+    teacher = PerfectTeacher(alphabet, pattern)
 
     print(f"Learning [{pattern}] over alphabet [{alphabet}]")
     try:
