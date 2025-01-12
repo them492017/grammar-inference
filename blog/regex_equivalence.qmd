@@ -84,18 +84,18 @@ In this implementation, the `add_state` function creates a new state using the
 next unused integer as the new state ID.
 
 ## Equivalence and Emptiness
-Consider two DFAs, $$D_1$$ and $$D_2$$. Now suppose that the languages recognised
-by the DFAs is given by $$L_1$$ and $$L_2$$ respectively.
+Consider two DFAs, $D_1$ and $D_2$. Now suppose that the languages recognised
+by the DFAs is given by $L_1$ and $L_2$ respectively.
 
-If the DFAs are equivalent, then every string in $$L_1$$ must be in $$L_2$$. That is,
+If the DFAs are equivalent, then every string in $L_1$ must be in $L_2$. That is,
 the automata agree on every string.
 
 However, if they are not equivalent, then there exists at least one string which
 is recognised by one DFA and not the other.
 
 Thinking about this in set notation (remember that languages are just sets), 
-we have that if $$D_1$$ and $$D_2$$ are not equivalent, then there is a string
-$$x$$ such that $$x \in L_1 \cap \lnot L_2$$ or $$x \in L_1 \cap \lnot L_2$$.
+we have that if $D_1$ and $D_2$ are not equivalent, then there is a string
+$x$ such that $x \in L_1 \cap \lnot L_2$ or $x \in L_1 \cap \lnot L_2$.
 
 Hence, two DFAs are equivalent if the symmetric difference $$(L_1 \cap \lnot L_2) \cup (\lnot L_1 \cap L_2)$$
 of the languages they recognise is empty; i.e. there is no string which is in the language
@@ -116,8 +116,8 @@ To do this, we need our new DFA to keep track of the state each DFA is in at eac
 step. We can achieve this by storing the pair of the two states the two DFAs are in
 as the current state of our new DFA.
 
-If the states of the two DFAs are given by $$Q_1$$ and $$Q_2$$, then
-our new DFA should have states $$Q_1 \times Q_2$$.
+If the states of the two DFAs are given by $Q_1$ and $Q_2$, then
+our new DFA should have states $Q_1 \times Q_2$.
 
 Then, since we want to accept any string which is accepted by any of the two DFAs,
 any state pair which contains at least one final state in the original DFAs
