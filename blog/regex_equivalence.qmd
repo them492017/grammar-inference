@@ -1,0 +1,204 @@
+---
+title: "Testing regular expressions for equivalence"
+author: "Martin Ong"
+date: "2024-1-12"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+    code-tools: true
+    code-line-numbers: true
+    number-sections: true
+---
+
+# Equivalence
+Any two languages (sets of strings) are equivalent if they each contain
+the same strings. Often, when working with regular languages, we deal with
+objects which recognise a particular language, however it is not immediately
+clear from looking at such an object what the language it recognises actually
+is.
+
+A common problem when dealing with such objects is determining whether two
+different objects are equivalent, in the sense that they recognise the same
+language.
+
+In this post, we will focus on finite automata. <!-- TODO: reword -->
+
+```{python}
+class Automaton(Protocol, Generic[T, S]):
+    """
+    T: type of a state
+    S: type of a state's transition table
+    """
+    start: T
+    states: set[T]
+    final: set[T]
+    transitions: dict[T, S]
+
+    def add_state(self, transitions: S) -> None:
+        ...
+
+    def make_final(self, state: T) -> None:
+        assert state in self.states
+        self.final.add(state)
+
+    def update(self, state: T, transitions: S) -> None:
+        self.transitions[state] = transitions
+
+    def evaluate(self, s: str) -> bool:
+        ...
+```
+
+# Deterministic Finite Automata
+Deteriministic finite automata (DFAs) are one such object which behave nicely.
+It is well known that every DFA recognises a regular language, and every regular
+language is recognised by some DFA. Thus, we will begin by trying to compare
+two DFAs for equivalence.
+
+We can represent a DFA with the following python class
+```{python}
+class DFA(Automaton[int, dict[str, int]]):
+    next_state: int
+
+    def __init__(self) -> None:
+        self.transitions = {}
+        self.start = 0
+        self.states = { self.start }
+        self.final = set()
+        self.next_state = 1
+
+    def add_state(self, transitions: dict[str, int]) -> None:
+        self.states.add(self.next_state)
+        self.transitions[self.next_state] = transitions
+        self.next_state += 1
+
+    def evaluate(self, s: str) -> bool:
+        curr = self.start
+        for c in s:
+            curr = self.transitions[curr][c]
+        return curr in self.final
+```
+
+In this implementation, the `add_state` function creates a new state using the
+next unused integer as the new state ID.
+
+## Equivalence and Emptiness
+Consider two DFAs, $$D_1$$ and $$D_2$$. Now suppose that the languages recognised
+by the DFAs is given by $$L_1$$ and $$L_2$$ respectively.
+
+If the DFAs are equivalent, then every string in $$L_1$$ must be in $$L_2$$. That is,
+the automata agree on every string.
+
+However, if they are not equivalent, then there exists at least one string which
+is recognised by one DFA and not the other.
+
+Thinking about this in set notation (remember that languages are just sets), 
+we have that if $$D_1$$ and $$D_2$$ are not equivalent, then there is a string
+$$x$$ such that $$x \in L_1 \cap \lnot L_2$$ or $$x \in L_1 \cap \lnot L_2$$.
+
+Hence, two DFAs are equivalent if the symmetric difference $$(L_1 \cap \lnot L_2) \cup (\lnot L_1 \cap L_2)$$
+of the languages they recognise is empty; i.e. there is no string which is in the language
+of one DFA and not the other.
+
+## Boolean operations with automata
+
+### Union
+Given two DFA, we want to be able to construct a new DFA which recognises
+the language of strings which is recognised by either of the two input DFAs.
+The standard way to do this is via a "product construction".
+
+The idea behind a product construction is to create a new DFA which essentially
+runs both DFA at once on the same string, and then checks if either is in a final
+state at the end of the run.
+
+To do this, we need our new DFA to keep track of the state each DFA is in at each
+step. We can achieve this by storing the pair of the two states the two DFAs are in
+as the current state of our new DFA.
+
+If the states of the two DFAs are given by $$Q_1$$ and $$Q_2$$, then
+our new DFA should have states $$Q_1 \times Q_2$$.
+
+Then, since we want to accept any string which is accepted by any of the two DFAs,
+any state pair which contains at least one final state in the original DFAs
+should be marked as final.
+
+[DIAGRAM HERE]
+
+In code, this would be
+```{python}
+class DFA(DFA):
+    def union(self, dfa: DFA) -> DFA:
+        res = DFA()
+
+        state_pairs = list(product(self.states, dfa.states))
+
+        res.start = state_pairs.index((self.start, dfa.start))
+        res.states = set(range(len(state_pairs)))
+        res.final = set(i for i in res.states if state_pairs[i][0] in self.final or state_pairs[i][1] in dfa.final)
+        res.next_state = len(state_pairs)
+        res.transitions = {state: dict() for state in res.states}
+
+        for state in res.states:
+            for a in ALPHABET:
+                res.transitions[state][a] = state_pairs.index((
+                    self.transitions[state_pairs[state][0]][a],
+                    dfa.transitions[state_pairs[state][1]][a]
+                ))
+
+        return res
+
+```
+
+### Intersection
+To find a DFA recognising the intersection of the languages of two DFA, we only
+need to slightly modify the algorithm for the union construction.
+
+In particular, after running the DFA with state pairs,  <!-- TODO: reword -->
+we only need to change the choice of final states.
+
+For the intersection case, we only want to accept strings which are accepted
+by both DFAs, so the final states should be the states where each of the states
+in the pair are final states in the original DFAs.
+
+In python, this would be 
+```{python}
+class DFA(DFA):
+    def union(self, dfa: DFA) -> DFA:
+        res = DFA()
+
+        state_pairs = list(product(self.states, dfa.states))
+
+        res.start = state_pairs.index((self.start, dfa.start))
+        res.states = set(range(len(state_pairs)))
+        # Notice the 'or' has become an 'and' on this line
+        res.final = set(i for i in res.states if state_pairs[i][0] in self.final and state_pairs[i][1] in dfa.final)
+        res.next_state = len(state_pairs)
+        res.transitions = {state: dict() for state in res.states}
+
+        for state in res.states:
+            for a in ALPHABET:
+                res.transitions[state][a] = state_pairs.index((
+                    self.transitions[state_pairs[state][0]][a],
+                    dfa.transitions[state_pairs[state][1]][a]
+                ))
+
+        return res
+```
+
+### Complement
+Now we want to construct a DFA recognising the complement language of some
+given DFA. That is, a DFA which accepts every string that is rejected by the
+original DFA.
+
+Since we just want to switch the evaluation of the DFA on every input, it suffices
+to switch the final and non-final states.
+
+In python, this would look like
+```{python}
+class DFA(DFA):
+    def complement(self) -> DFA:
+        dfa = deepcopy(self)
+        dfa.final = self.states - self.final
+        return dfa
+```
