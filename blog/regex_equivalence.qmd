@@ -292,3 +292,72 @@ class NFA(Automaton[int, dict[str, set[int]]]):
             )
         return len(curr & self.final) > 0
 ```
+
+[diagram of an NFA]
+
+Consider the NFA shown above. If it is run on the string 'abba', [say what states it is in]
+
+Notice that we have just applied a deterministic algorithm to determine whether
+or not an NFA accepts a given string: we keep track at each step of which states
+the NFA could possibly be in, and then accept the string if one of the possible
+ending states is final in the original NFA.
+
+We can create a DFA to complete this process in a similar manner to the product construction
+for union and intersection, but now we need to keep track of a set of possible
+states which might not be of a constant length at all times.
+
+To achieve this, we can create a new DFA with states labelled by the powerset
+of the set of states of the original DFA. Recall that the powerset of a set
+is the set of all subsets, so the powerset of $\{1, 2, 3\}$ would be
+$$\{\{\}, \{1\}, \{2\}, \{3\}, \{1,2\}, \{1,3\}, \{2,3\}, \{1,2,3\}\}.$$
+
+Since we want the current state of this new DFA to store the set of states that
+the NFA could be in, the choice of transitions follows naturally: for each
+character $a$, the $a$-transition from each state should be the set of states
+reachable from any state in the current set along a single $a$-transition in
+the original NFA.
+
+This way, the current state will always represent the set of possible states 
+the NFA could be upon reading the current character.
+
+Finally, the final states in the new DFA should be the sets of states which
+contain at least one final state in the NFA, since this would correspond to
+the possiblilty of ending in a final state in the original NFA.
+
+We can program this so called 'determinisation' of the NFA as follows.
+```{python}
+class NFA(NFA):
+    def determinise(self) -> DFA:
+        def powerset(s: set[T]) -> list[tuple[T, ...]]:
+            return list(chain.from_iterable(set(combinations(s, r)) for r in range(len(s)+1)))
+
+        dfa = DFA()
+
+        subsets = powerset(self.states)
+
+        dfa.start = subsets.index((self.start,))
+        dfa.states = set(range(len(subsets)))
+        dfa.final = set(i for i in dfa.states if len(set(subsets[i]) & self.final) > 0)
+        dfa.transitions = {state: dict() for state in dfa.states}
+        dfa.next_state = len(subsets)
+
+        for state, subset in enumerate(subsets):
+            for a in ALPHABET:
+                result = set().union(*(self.transitions[s].get(a, set()) for s in subset))
+                dfa.transitions[state][a] = subsets.index(
+                    tuple(sorted(result))
+                )
+
+        return dfa
+```
+
+However, there is a problem with this algorithm. If you look carefully,
+you will notice that we never handled $\varepsilon$-transitions. If an NFA contains
+$\varepsilon$-transitions, then after taking an $a$-transition it might be able to
+reach extra states that aren't included in the target state in the DFA!
+
+To fix this issue, we can first remove all $\varepsilon$-transitions from the
+NFA before running the determinisation algorithm.
+
+## Removing $\varepsilon$ States
+aaaaa
