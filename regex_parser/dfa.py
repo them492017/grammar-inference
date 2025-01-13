@@ -98,10 +98,6 @@ class NFA(Automaton[int, dict[str, set[int]]]):
         for s in range(1, nfa.next_state):
             actual_state = s + self.next_state - 1
             if s in nfa.final:
-                print(
-                    nfa.transitions[s],
-                    self.transitions[state]
-                )
                 new_transitions[actual_state] = self.join_transitions(
                     nfa.transitions[s],
                     self.transitions[state]
@@ -118,8 +114,7 @@ class NFA(Automaton[int, dict[str, set[int]]]):
             new_transitions[state] = nfa.transitions[0]
 
         self.transitions = {**self.transitions, **new_transitions}
-
-        self.next_state += nfa.next_state - 1  # TODO: move where this would make sense
+        self.next_state += nfa.next_state - 1
 
     def join_transitions(self, a: dict[str, set[int]], b: dict[str, set[int]]) -> dict[str, set[int]]:
         return {

@@ -83,7 +83,7 @@ class DFA(Automaton[int, dict[str, int]]):
 In this implementation, the `add_state` function creates a new state using the
 next unused integer as the new state ID.
 
-## Equivalence and Emptiness
+## Equivalence and Emptiness <!-- TODO: rename this -->
 Consider two DFAs, $D_1$ and $D_2$. Now suppose that the languages recognised
 by the DFAs is given by $L_1$ and $L_2$ respectively.
 
@@ -95,9 +95,9 @@ is recognised by one DFA and not the other.
 
 Thinking about this in set notation (remember that languages are just sets), 
 we have that if $D_1$ and $D_2$ are not equivalent, then there is a string
-$x$ such that $x \in L_1 \cap \lnot L_2$ or $x \in L_1 \cap \lnot L_2$.
+$x$ such that $x \in L_1 \cap L_2^c$ or $x \in L_1^c \cap L_2$.
 
-Hence, two DFAs are equivalent if the symmetric difference $$(L_1 \cap \lnot L_2) \cup (\lnot L_1 \cap L_2)$$
+Hence, two DFAs are equivalent if the symmetric difference $$(L_1 \cap L_2^2) \cup (L_1^c \cap L_2)$$
 of the languages they recognise is empty; i.e. there is no string which is in the language
 of one DFA and not the other.
 
@@ -201,4 +201,94 @@ class DFA(DFA):
         dfa = deepcopy(self)
         dfa.final = self.states - self.final
         return dfa
+```
+
+### Symmetric Difference
+Recall that the symmetric difference of two languages $L_1$ and $L_2$ is given
+by $$(L_1 \cap L_2^c) \cup (L_1^c \cap L_2)$$. Since we already know how to construct
+DFAs for the union, intersection and complement operations, we can compute
+the symmetric difference by combining the constructions together.
+
+```{python}
+class DFA(DFA):
+    def symmetric_difference(self, dfa: DFA) -> DFA
+        self_not_d = self.intersection(dfa.complement())
+        not_self_d = self.complement().intersection(dfa)
+
+        return self_not_d.union(not_self_d)
+```
+
+## Equivalence and Emptiness
+Now, given two DFA we can construct a new DFA which recognises all of the strings
+on which the two original DFA disagree. It suffices to determine whether or not
+this new DFA actually accepts any strings. If it doesn't recognise any strings, then
+then two original DFA recognise the same language.
+
+Since all we want is to find a single string which the DFA accepts, we just need to
+find a path from the start state which leads to a final state, and then the DFA 
+will accept the string formed by adding one character for each transition along 
+this path, starting from the start state.
+
+[DIAGRAM]
+
+We will do so with a BFS traversal.
+```{python}
+class DFA(DFA):
+    def is_empty(self) -> bool:
+        seen = set()
+        queue: deque[int] = deque([self.start])
+
+        while len(queue) > 0:
+            curr = queue.popleft()
+            if curr in self.final:
+                return False
+            if curr in seen:
+                continue
+            seen.add(curr)
+
+            for a in ALPHABET:
+                state = self.transitions[curr][a]
+                queue.append(state)
+
+        return True
+```
+
+Finally, we can put everything together to obtain an equivalence algorithm for DFAs!
+
+```{python}
+class DFA(DFA):
+    def is_equivalent(self, dfa: DFA) -> bool:
+        return self.symmetric_difference(dfa).is_empty()
+```
+
+# Generalising to NFAs
+Whilst DFAs are generally well behaved and have nice closure properties, as we saw
+in the boolean operations section, often it is easier to represent languages with
+more general objects. One such object is a nondeterministic finite automata, which
+is a generalisation of DFA where states may have more than one outgoing transition for each
+character, and a path to the final state is chosen nondeterministically.
+
+```{python}
+class NFA(Automaton[int, dict[str, set[int]]]):
+    next_state: int
+
+    def __init__(self) -> None:
+        self.transitions = {}
+        self.start = 0
+        self.states = { self.start }
+        self.final = set()
+        self.next_state = 1
+
+    def add_state(self, transitions: dict[str, set[int]]) -> None:
+        self.states.add(self.next_state)
+        self.transitions[self.next_state] = transitions
+        self.next_state += 1
+        
+    def evaluate(self, s: str) -> bool:
+        curr = { self.start }
+        for c in s:
+            curr = set().union(
+                *(self.transitions[state][c] for state in curr)
+            )
+        return len(curr & self.final) > 0
 ```
