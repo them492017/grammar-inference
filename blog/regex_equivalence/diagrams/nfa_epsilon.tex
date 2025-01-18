@@ -1,0 +1,24 @@
+\documentclass{amsart}
+
+\usepackage{mypreamble}
+
+\usetikzlibrary{automata}
+
+\begin{document}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+    \node[state, initial] (q_0) {$q_0$};
+    \node[state] (q_1) [above right=of q_0] {$q_1$};
+    \node[state] (q_2) [right=of q_1] {$q_2$};
+    \node[state] (q_3) [below right=of q_0] {$q_3$};
+
+    \path[->]   (q_0) edge node [above left] {a} (q_1)
+                (q_0) edge node [below left] {a} (q_3)
+                (q_1) edge node [above] {$\varepsilon$} (q_2)
+                (q_1) edge node [left] {$\varepsilon$} (q_3)
+                (q_3) edge node [below right] {b} (q_2);
+\end{tikzpicture}
+\end{figure}
+\end{document}
+

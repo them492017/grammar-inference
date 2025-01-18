@@ -2,3 +2,10 @@ __pycache__/
 myenv
 venv/
 **.png
+total 168
+**.aux
+**.fdb_latexmk
+**.fls
+**.log
+**.out
+**.synctex.gz

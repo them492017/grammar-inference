@@ -360,4 +360,6 @@ To fix this issue, we can first remove all $\varepsilon$-transitions from the
 NFA before running the determinisation algorithm.
 
 ## Removing $\varepsilon$ States
-aaaaa
+Consider the following NFA.
+
+[diagram]
