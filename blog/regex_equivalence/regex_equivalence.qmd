@@ -360,6 +360,143 @@ To fix this issue, we can first remove all $\varepsilon$-transitions from the
 NFA before running the determinisation algorithm.
 
 ## Removing $\varepsilon$ States
-Consider the following NFA.
+Consider the following NFA which contains two $\varepsilon$-transitions.
 
 [diagram]
+
+If we want to construct a new NFA which is equivalent to this NFA but doesn't
+contain any $\varepsilon$-transitions, we should construct additional transitions
+from some state $s$ to a state $t$ if $t$ is reachable from $s$ using at most
+one non-$\varepsilon$-transition.
+
+For this example, consider the initial state $q_0$. Its only outgoing transitions
+are an $a$-transition pointing to $q_1$ and a $b$-transition pointing at $q_3$.
+Now, $q_3$ only has one outgoing transition, and it is not an $\varepsilon$-transition
+so there will be no additional states reachable along this path.
+However, $q_1$ has two outgoing $\varepsilon$-transitions, pointing to $q_3$
+and $q_2$. Thus, in the equivalent NFA without $\varepsilon$-transitions
+we are constructing, there should be additional $a$-transitions from $q_0$ to
+$q_2$ and $q_3$, and the original transitions should also remain in the new NFA. 
+
+We can program this nicely using a DFS.
+```{python}
+class NFA(NFA):
+    def remove_epsilon(self) -> NFA:
+        nfa = deepcopy(self)
+        nfa.transitions = {state: dict() for state in self.states}
+
+        for state in self.states:
+            seen: set[int] = set()
+            final = [False]
+            # dfs to get all states reachable by exactly one non-epsilon transition
+            def helper(curr: int) -> None:
+                if curr not in seen:
+                    seen.add(curr)
+                    if curr in self.final:
+                        final[0] = True
+                    for a, targets in self.transitions[curr].items():
+                        if a == EPSILON:
+                            for target in targets:
+                                helper(target)
+                        else:
+                            nfa.transitions[state][a] = \
+                                nfa.transitions[state].get(a, set()) | targets
+            helper(state)
+            if final[0]:
+                nfa.final.add(state)
+
+        return nfa
+```
+
+## Conclusion
+-- show algortihm for nfa -> dfa
+something like: (maybe needds __super__)
+```{python}
+class NFA(NFA):
+    def determinise(self) -> DFA:
+        self.remove_epsilon().determinise()
+```
+
+# Regex Equivalence
+Now that we are able to test both NFAs and DFAs for equivalence, we will move
+on to generalising further so that we can also test regex for equivalence.
+
+In the same way that we generalised to NFAs from DFA equivalence by showing how
+to convert an NFA into an equivalent DFA, we will show how to convert a regular
+expression into an equivalent NFA, and then employ the previous techniques
+to test if the two NFAs are equivalent.
+
+## Regex and recursion
+We will employ a recursive definition of regular expressions, as opposed to
+a more general kind of regular expression commonly used in programming languages.
+
+We define a regular expression over an alphabet (a set of allowed characters)
+$\Sigma$ as follows.
+
+1. $\emptyset$ and $\varepsilon$ are regular expressions
+2. $a$ is a regular expression for all $a$ in the alphabet
+3. If $R_1, R_2$ are regular expressions, then $(R_1 | R_2)$ is a regular expression
+4. If $R_1, R_2$ are regular expressions, then $(R_1 R_2)$ is a regular expression
+5. If $R$ is a regular expression, then $R^{\*}$ is a regular expression
+
+Semantically, we evaluate regular expressions as follows.
+1. $\emptyset$ matches nothing, and $\varepsilon$ matches only an empty string
+2. $a$ matches only the string containing the single character $a$
+3. $(R_1 | R_2)$ matches any string that either is matched by $R_1$ or is matched by $R_2$
+4. $(R_1 R_2)$ matches any string that can be split in two in such a way that the first
+    segment is matched by $R_1$ and the second is matched by $R_2$
+5. $R^{\*}$ matches any string that can be split into 0 or more segments which are
+   all matched by $R$. Note that this includes the empty string
+
+## Basic conversions
+We will begin by exploring how the base cases of regular expressions
+can be expressed as NFA.
+
+Clearly, $\emptyset$ is equivalent to any NFA which matches no strings.
+We can achieve this by creating an NFA with a single state which is non-final.
+
+[diagram]
+
+Now, consider $varepsilon$. In order to match only the empty string, we can construct
+an NFA where the initial state is a sole final state but reading any character forces the NFA
+to leave this state forever.
+
+[diagram]
+
+For any $a$, we can construct an NFA which accepts only the string containing a single $a$
+as follows.
+
+[diagram]
+
+## Recursive conversions
+For this section, suppose we have two regex $R_1, R_2$ with equivalent NFAs
+$N_1, N_2$.
+
+First, we want to show how to create a NFA which is equivalent to $R_1 | R_2$.
+An equivalent NFA should run $N_1$ and $N_2$ and accept if either of them accepted.
+We can achieve this by creating an NFA which non-deterministically chooses which
+NFA to run, and then runs that NFA as in the following machine:
+
+[diagram]
+
+Here, we create a new start state with two $\varepsilon$-transitions pointing to
+the initial states of $N_1$ and $N_2$. This means that before the input is read, the NFA
+will non-deterministically choose which NFA to run, so if one of the NFA will accept
+the string, the new NFA will also accept. This exactly mirrors the behaviour
+of the regex $R_1 | R_2$, which will match a string whenever either $R_1$ or $R_2$
+is able to match it.
+
+Now, we will consider the regex $R_1 R_2$. In this case, an equivalent NFA should
+run $N_1$ and at some point when $N_1$ is in a final state, non-deterministically
+start running $N_2$. Again, this corresponds to choosing some point at which to split
+the input string, and testing that $R_1$ matches the first segment and $R_2$ matches
+the second segment.
+
+We can achieve this by adding $\varepsilon$-transitions between every final state of $N_1$
+and the initial state of $N_2$, and changing these final states in $N_1$ to non-final.
+This way, the new NFA will run $N_1$, and whenever it is in a final state it will non-deterministically
+choose whether or not it should switch to $N_2$. If it ends in a final state,
+this means at some point it non-deterministically switched from running $N_1$
+to running $N_2$, and $N_2$ ended in a final state as well.
+
+Finally, we consider the regex $R_1^{\*}$. 
