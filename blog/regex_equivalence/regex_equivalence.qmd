@@ -409,7 +409,7 @@ class NFA(NFA):
 ```
 
 ## Conclusion
--- show algortihm for nfa -> dfa
+-- show algorithm for nfa -> dfa
 something like: (maybe needds __super__)
 ```{python}
 class NFA(NFA):
@@ -448,6 +448,132 @@ Semantically, we evaluate regular expressions as follows.
 5. $R^{\*}$ matches any string that can be split into 0 or more segments which are
    all matched by $R$. Note that this includes the empty string
 
+We will use the following classes to represent a regular expression.
+```{python}
+class Regex:
+    name: str
+    regex: list
+
+    def __repr__(self) -> str:
+        ...
+
+class Empty(Regex):
+    def __init__(self) -> None:
+        self.regex = []
+        self.name = "Empty"
+
+    def __repr__(self) -> str:
+        return "Empty()"
+
+class Epsilon(Regex):
+    def __init__(self) -> None:
+        self.regex = []
+        self.name = "Epsilon"
+
+    def __repr__(self) -> str:
+        return "Epsilon()"
+
+class Char(Regex):
+    def __init__(self, char: str) -> None:
+        assert len(char) == 1
+        assert char in ALPHABET
+        self.char = char
+
+    def __repr__(self) -> str:
+        return f"Char({self.char})"
+
+class Or(Regex):
+    def __init__(self, r1: Regex, r2: Regex) -> None:
+        self.r1 = r1
+        self.r2 = r2
+        self.regex = [self.r1, self.r2]
+        self.name = "Union"
+
+    def __repr__(self) -> str:
+        return f"Union({self.r1, self.r2})"
+
+class Concat(Regex):
+    def __init__(self, r1: Regex, r2: Regex) -> None:
+        self.r1 = r1
+        self.r2 = r2
+        self.regex = [self.r1, self.r2]
+        self.name = "Concat"
+
+    def __repr__(self) -> str:
+        return f"Concat({self.r1, self.r2})"
+
+class Star(Regex):
+    def __init__(self, r: Regex) -> None:
+        self.r = r
+
+    def __repr__(self) -> str:
+        return f"Star({self.r})"
+```
+
+## Extending the NFA class
+In this section, we will define some helper functions for the NFA class which
+will simplify the regex to NFA conversion. We want a function which will allow
+for a second NFA to be "inserted" into an existing NFA in such a way that any
+any incoming transitions pointing towards some specified insertion target state
+will be redirected to the initial state of the NFA being inserted, and any
+outgoing transitions will be added to the final states of the NFA being inserted.
+Additionally, the final states of the NFA being inserted should remain final
+if and only if the target insertion state was itself final in the original NFA.
+
+```{python}
+class NFA(NFA):
+    def insert(self, state: int, nfa: NFA) -> None:  # TODO: maybe refactor to use len instead of self.next_state
+        """
+        Assumes NFAs have their states numbered monotonically.
+
+        TODO: simplify to just delete the old target state and change transitions where necessary
+        (just add a constant to every state in the inserted NFA)
+        """
+        # add states
+        self.states |= set(range(self.next_state, self.next_state + nfa.next_state - 1))  # TODO: dont add extra state (one is shared)
+
+        # deal with final states
+        if state in self.final:
+            if 0 not in nfa.final:
+                self.final.remove(state)
+            self.final |= {s + self.next_state - 1 for s in nfa.final - {0}}
+
+        # map nfa transitions to new values
+        nfa.transitions = {
+            state: {
+                char: set(map(lambda s: s + self.next_state - 1, targets)) for char, targets in transitions.items()
+            } for state, transitions in nfa.transitions.items()
+        }
+
+        # update transitions
+        new_transitions = {}
+        for s in range(1, nfa.next_state):
+            actual_state = s + self.next_state - 1
+            if s in nfa.final:
+                new_transitions[actual_state] = self.join_transitions(
+                    nfa.transitions[s],
+                    self.transitions[state]
+                )
+            else:
+                new_transitions[actual_state] = nfa.transitions[s]
+
+        if 0 in nfa.final:
+            new_transitions[state] = self.join_transitions(
+                nfa.transitions[0],
+                self.transitions[state]
+            )
+        else:
+            new_transitions[state] = nfa.transitions[0]
+
+        self.transitions = {**self.transitions, **new_transitions}
+        self.next_state += nfa.next_state - 1
+
+    def join_transitions(self, a: dict[str, set[int]], b: dict[str, set[int]]) -> dict[str, set[int]]:
+        return {
+            char: a.get(char, set()) | b.get(char, set()) for char in a.keys() | b.keys()
+        }
+```
+
 ## Basic conversions
 We will begin by exploring how the base cases of regular expressions
 can be expressed as NFA.
@@ -457,16 +583,53 @@ We can achieve this by creating an NFA with a single state which is non-final.
 
 [diagram]
 
-Now, consider $varepsilon$. In order to match only the empty string, we can construct
+```{python}
+class Empty(Empty):
+    def to_nfa(self) -> NFA:
+        return NFA()
+```
+
+Now, consider $\varepsilon$. In order to match only the empty string, we can construct
 an NFA where the initial state is a sole final state but reading any character forces the NFA
 to leave this state forever.
 
 [diagram]
 
+```{python}
+class Epsilon(Epsilon):
+    def to_nfa(self) -> NFA:
+        nfa = NFA()
+        nfa.add_state({
+            a: {1} for a in ALPHABET
+        })
+        nfa.update(0, {
+            a: {1} for a in ALPHABET
+        })
+        nfa.make_final(0)
+        return nfa
+```
+
 For any $a$, we can construct an NFA which accepts only the string containing a single $a$
 as follows.
 
 [diagram]
+
+```{python}
+class Char(Char):
+    def to_nfa(self) -> NFA:
+        nfa = NFA()
+        nfa.update(0, {
+            a: {1 if a == self.char else 2} for a in ALPHABET
+        })
+        nfa.add_state({
+            a: {2} for a in ALPHABET
+        })
+        nfa.add_state({
+            a: {2} for a in ALPHABET
+        })
+        nfa.make_final(1)
+        return nfa
+```
 
 ## Recursive conversions
 For this section, suppose we have two regex $R_1, R_2$ with equivalent NFAs
@@ -478,6 +641,22 @@ We can achieve this by creating an NFA which non-deterministically chooses which
 NFA to run, and then runs that NFA as in the following machine:
 
 [diagram]
+
+```{python}
+class Union(Union):
+    def to_nfa(self) -> NFA:
+        nfa = NFA()
+        nfa.update(0, {
+            EPSILON: {1, 2}
+        })
+        nfa.add_state({})
+        nfa.add_state({})
+        nfa.make_final(1)
+        nfa.make_final(2)
+        nfa.insert(1, self.r1.to_nfa())
+        nfa.insert(2, self.r2.to_nfa())
+        return nfa
+```
 
 Here, we create a new start state with two $\varepsilon$-transitions pointing to
 the initial states of $N_1$ and $N_2$. This means that before the input is read, the NFA
@@ -499,4 +678,59 @@ choose whether or not it should switch to $N_2$. If it ends in a final state,
 this means at some point it non-deterministically switched from running $N_1$
 to running $N_2$, and $N_2$ ended in a final state as well.
 
-Finally, we consider the regex $R_1^{\*}$. 
+[Diagram]
+
+```{python}
+class Concat(Concat):
+    def to_nfa(self) -> NFA:
+        nfa = NFA()
+        nfa.update(0, {
+            EPSILON: {1}
+        })
+        nfa.add_state({  # 1
+            EPSILON: {2}
+        })
+        nfa.add_state({})  # 2
+        nfa.make_final(2)
+        nfa.insert(1, self.r1.to_nfa())
+        nfa.insert(2, self.r2.to_nfa())
+        return nfa
+```
+
+Finally, we consider the regex $R_1^{\*}$. Recall that $R_1^{\*}$ should match
+any string that can be split up into 0 or more segments each of which are matched
+by $R_1$. Thus, we can apply a similar construction as we did in the concatenation
+case, where final states have $\varepsilon$-transitions pointing to the initial state.
+Additionally, since the regex also matches the empty string even if $R_1$ doesn't,
+we need to make the initial state final. To do this in a nice way we will simply
+create a new initial state that is final and has a single $\varepsilon$ transition
+pointing to the old initial state.
+
+[diagram]
+
+```{python}
+class Star(Star):
+    def to_nfa(self) -> NFA:
+        nfa = NFA()
+        nfa.update(0, {
+            EPSILON: {1}
+        })
+        nfa.add_state({
+            EPSILON: {1}
+        })
+        nfa.make_final(0)
+        nfa.make_final(1)
+        nfa.insert(1, self.r.to_nfa())
+        return nfa
+```
+
+## Converting arbitrary regex to NFAs
+Now we have learnt how to convert various types of regex into NFAs, it remains
+to tie everything together to create an algorithm for converting arbitrary regex
+to NFAs.
+
+Notice that we have described constructions for each of the cases in the definition
+of a regular expression. Thus, given any arbitrary regular expression, we can recursively
+apply the previous constructions to obtain an NFA for an arbitrary regular expression.
+
+For example, consider the following 
