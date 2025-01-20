@@ -12,6 +12,23 @@ format:
     number-sections: true
 ---
 
+```{python}
+from __future__ import annotations
+from collections import defaultdict, deque
+from typing import Generic, Literal, Protocol, Self, TypeVar
+from itertools import chain, combinations, product
+from copy import deepcopy
+
+
+EMPTYSET = "\u2205"
+EPSILON = "\u03b5"
+
+ALPHABET = "ab"
+EXTENDED_ALPHABET = f"ab{EPSILON}"
+T = TypeVar("T")
+S = TypeVar("S")
+```
+
 # Equivalence
 Any two languages (sets of strings) are equivalent if they each contain
 the same strings. Often, when working with regular languages, we deal with
@@ -164,7 +181,7 @@ in the pair are final states in the original DFAs.
 In python, this would be 
 ```{python}
 class DFA(DFA):
-    def union(self, dfa: DFA) -> DFA:
+    def intersection(self, dfa: DFA) -> DFA:
         res = DFA()
 
         state_pairs = list(product(self.states, dfa.states))
@@ -211,7 +228,7 @@ the symmetric difference by combining the constructions together.
 
 ```{python}
 class DFA(DFA):
-    def symmetric_difference(self, dfa: DFA) -> DFA
+    def symmetric_difference(self, dfa: DFA) -> DFA:
         self_not_d = self.intersection(dfa.complement())
         not_self_d = self.complement().intersection(dfa)
 
@@ -413,8 +430,8 @@ class NFA(NFA):
 something like: (maybe needds __super__)
 ```{python}
 class NFA(NFA):
-    def determinise(self) -> DFA:
-        self.remove_epsilon().determinise()
+    def determinise1(self) -> DFA:
+        return self.remove_epsilon().determinise()
 ```
 
 # Regex Equivalence
@@ -482,7 +499,7 @@ class Char(Regex):
     def __repr__(self) -> str:
         return f"Char({self.char})"
 
-class Or(Regex):
+class Union(Regex):
     def __init__(self, r1: Regex, r2: Regex) -> None:
         self.r1 = r1
         self.r2 = r2
@@ -733,4 +750,106 @@ Notice that we have described constructions for each of the cases in the definit
 of a regular expression. Thus, given any arbitrary regular expression, we can recursively
 apply the previous constructions to obtain an NFA for an arbitrary regular expression.
 
-For example, consider the following 
+For example, consider the regex $$(ab)^{\*}|a$$.
+
+This regex is of the form $R_1 | R_2$, where $R_1 = (ab)^{\*}$ and $R_2 = a$.
+
+We can construct an NFA for $a$ easily, and for $(ab)*$ it is of the from $R^{\*}$
+so we need to first construct an NFA for $ab$. However, $ab$ is the concatenation
+of $a$ and $b$, so we get
+
+[diagram]
+
+Moreover, we have
+
+[diagrams for each]
+
+Hence, the algorithms we have already written are sufficient to construct an NFA
+from any arbitrary regex, due to their recursive definition.
+
+## Parsing regex
+Of course, one problem remains. We need to know what form the regex takes. For example,
+given the regex $$(ab)^{\*}|a,$$ we don't immidiately know how to convert it 
+into the parsed form represented by our classes.
+
+Here, I will present a simple regex parser which will correctly parse any regex
+following the definition presented earlier. In particular, the brackets must always
+be included.
+
+First, since we will be dealing with possibly nested parentheses, we will use a helper function
+which when given a string and a position of an open parenthesis in this string,
+finds the position of the matching closing parenthesis.
+
+```{python}
+def matching_idx(s: str, i: int) -> int:
+    if s[i] != "(":
+        raise ValueError("Initial character is not '('")
+
+    depth = 1
+
+    for j, c in enumerate(s[i+1:], start=i+1):
+        if c == "(":
+            depth += 1
+        if c == ")":
+            depth -= 1
+        if depth == 0:
+            return j
+
+```
+
+Now, to actually parse... [TODO: GIVE IDEA]
+```{python}
+def parse(s: str) -> Regex:
+    print("Parsing", s)
+
+    if len(s) == 0:
+        return Epsilon()
+    if len(s) == 1:
+        if s == EPSILON:
+            return Epsilon()
+        if s not in ALPHABET:
+            raise ValueError(f"Character '{s}' is not in the alphabet")
+        return Char(s)
+
+    if s[0] == "(":
+        end_idx = matching_idx(s, 0)
+        if end_idx == -1:
+            raise ValueError("Could not parse regex: no matching parenthesis")
+    else:
+        end_idx = 0
+
+    if end_idx > 0:
+        symbol = parse(s[1 : end_idx])
+    else:
+        symbol = parse(s[0])
+
+    if len(s) == end_idx + 1:
+        return symbol
+
+    next_char = s[end_idx+1]
+
+    if next_char == "|":
+        return Union(symbol, parse(s[end_idx+2:]))
+    elif next_char == "*":
+        if len(s) == end_idx + 2:
+            return Star(symbol)
+        else:
+            return Concat(Star(symbol), parse(s[end_idx+2:]))
+    elif next_char == "(":
+        return Concat(symbol, parse(s[end_idx+2:-1]))
+    else:
+        return Concat(symbol, parse(s[end_idx+1:]))
+```
+
+# Conclusion
+Finally, to tie everything together, we can write a program that will take in two
+regex strings, and determine whether or not they are equivalent.
+
+```{python}
+r1 = r"(((ab)*)|a)"
+r2 = r"((ab)|b*)"
+pr1, pr2 = parse(r1), parse(r2)
+n1, n2 = pr1.to_nfa(), pr2.to_nfa()
+d1, d2 = n1.determinise1(), n2.determinise1()
+# print("Is equivalent:", d1.is_equivalent(d2))
+```
