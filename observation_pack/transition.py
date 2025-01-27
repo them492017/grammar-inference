@@ -70,6 +70,7 @@ class Transition:
         assert not self.is_tree
         state = self.hypothesis.add_state(self.aseq)
         node.link(state)
+
         self.target_node = node
         self.target_state = state  # sets is_tree = True
 

@@ -1,13 +1,12 @@
 from __future__ import annotations
 from typing import Optional
 import sys
-
 from collections import defaultdict
 
 from ttt.print import print
 from regex_parser.regex import Regex
 from ttt.state import Hypothesis, visualize_dfa
-from ttt.node import Node
+from ttt.node import Node, all_nodes
 from ttt.state import State
 from ttt.teach import PerfectTeacher, SimpleDFATeacher, Teacher, SimpleTeacher
 from ttt.transition import Transition
@@ -131,7 +130,7 @@ class TTTAlgorithm:
             self.split_state(u, a, v)
             self.close_transitions_soft()
 
-            while inconsistency := self.has_trivial_inconcistency():
+            while inconsistency := self.has_trivial_inconsistency():
                 print("=" * 20)
                 print("Starting DISCRIMINATOR_FINALISATION")
                 block, a = inconsistency
@@ -143,7 +142,7 @@ class TTTAlgorithm:
                 self.close_transitions_soft()
 
             if self.has_non_trivial_blocks():
-                inconsistent_state, counterexample = self.find_nontrivial_inconcistency()
+                inconsistent_state, counterexample = self.find_nontrivial_inconsistency()
 
         print("FINISHED REFINE")
         self.dtree.print_tree()
@@ -160,21 +159,25 @@ class TTTAlgorithm:
                 return True
         return False
 
-    def has_trivial_inconcistency(self) -> Optional[tuple[Node, str]]:
+    def has_trivial_inconsistency(self) -> Optional[tuple[Node, str]]:
         for block in self.blocks:
-            for a in self.alphabet:
-                successor_block = None
-                for state in block.states():
-                    successor_node = state.transitions[a].target_node
+            if not block.is_leaf:
+                print(f"Searching for trivial inconsistency in {block}")
+                for a in self.alphabet:
+                    successor_block = None
+                    for state in block.states():
+                        successor_node = state.transitions[a].target_node
+                        print(f"char: {a}, state: {state}, successor: {successor_node} - B:{successor_node.block}")
 
-                    if successor_block is None:
-                        successor_block = successor_node.block 
-                    elif successor_node.block != successor_block:
-                        return block, a
+                        if successor_block is None:
+                            successor_block = successor_node.block 
+                        elif successor_node.block != successor_block:
+                            return block, a
         
         return None
 
-    def find_nontrivial_inconcistency(self) -> tuple[State, str]:
+    def find_nontrivial_inconsistency(self) -> tuple[State, str]:
+        print("Finding non_trivial inconsistency")
         self.dtree.print_tree()
         print(self.blocks)
         for state in self.hypothesis.states:
@@ -187,7 +190,7 @@ class TTTAlgorithm:
                         if self.hypothesis.evaluate_non_deterministic(discriminator, self.teacher, start=state) != true_value:
                             return state, discriminator
 
-        raise ValueError("No nontrivial inconcistency was found")
+        raise ValueError("No nontrivial inconsistency was found")
 
     def replace_blockroot(self, root: Node, discriminator: str) -> None:
         print("=" * 20)
@@ -236,6 +239,7 @@ class TTTAlgorithm:
         t1.parent = root
 
         # TODO: do this on the fly
+        # update parents and blocks
         print(t0, t1)
         for node in t0:
             print(node)
@@ -275,6 +279,7 @@ class TTTAlgorithm:
         if root.is_leaf:
             if root in state:
                 res = Node.make_leaf()
+                print(f"copying state {state[root]}")
                 res.state = state[root]
                 # TODO: set the block to the appropriate value
             else:
@@ -295,6 +300,9 @@ class TTTAlgorithm:
                 return self.create_new(root, inc)
 
         res.incoming_non_tree = set(inc[root])  # TODO: make incoming a set 
+        for t in res.incoming_non_tree:
+            print(id(t.target_node))
+            print(id(res))
         return res
 
     def mark(self, node: Node, mark: dict[Node, bool]) -> None:
@@ -325,6 +333,7 @@ class TTTAlgorithm:
         print(old_state.node)
         print(old_state.node.incoming_non_tree)
 
+        old_incoming_tree = old_state.node.incoming_tree
         l0, l1 = old_state.node.split_leaf(v)
 
         self.hypothesis.open_transitions += list(old_state.node.incoming_non_tree)
@@ -337,6 +346,8 @@ class TTTAlgorithm:
             transition.make_tree(l1)
             transition.target_node = l1
             l0.link(old_state)
+
+        old_state.node.incoming_tree = old_incoming_tree
 
     def learn(self, max_iterations: int = -1) -> tuple[Hypothesis, Node]:
         iterations = 0
@@ -354,7 +365,27 @@ class TTTAlgorithm:
             counterexample = equiv[1]
             assert counterexample is not None
             print("Found counterexample", counterexample)
-            self.refine(counterexample)
+
+            try:
+                self.refine(counterexample)
+            except Exception as e:
+                print("=" * 50)
+                print("Error in learning")
+
+                try:
+                    self.dtree.print_tree()
+                except Exception:
+                    pass
+
+                try:
+                    self.hypothesis.print_hypothesis()
+                except Exception:
+                    pass
+
+                print(f"all nodes: {all_nodes}")
+                print("=" * 50)
+
+                raise e
 
             iterations += 1
 

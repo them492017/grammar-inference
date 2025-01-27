@@ -11,6 +11,9 @@ if TYPE_CHECKING:
     from transition import Transition
 
 
+all_nodes: list[Node] = []
+
+
 class Node:
     is_leaf: bool
     _is_temporary: bool
@@ -18,8 +21,9 @@ class Node:
     _parent: Optional[Node]
     _state: Optional[State]
     _discriminator: Optional[str]
-    block: Optional[Node]
+    _block: Optional[Node]
     _incoming_non_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
+    _incoming_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
     depth: int
 
     def __init__(self,
@@ -29,6 +33,7 @@ class Node:
         state: Optional[State] = None,
         discriminator: Optional[str] = None,
     ) -> None:
+        all_nodes.append(self)
         self.is_leaf = is_leaf
         self._is_temporary = discriminator != "" and not self.is_leaf
         print("new node is temporary:", self._is_temporary)
@@ -36,12 +41,14 @@ class Node:
         self._parent = parent
         self._state = state
         self._discriminator = discriminator
-        self.block = None
+        self._block = None
         self._incoming_non_tree = set()
+        self._incoming_tree = set()
         self.depth = 0
 
     def replace_with_final(self, node: Node) -> None:
         # replace the node with another in place
+        print(f"Replacing {self} with {node}")
         assert self.is_leaf == node.is_leaf
 
         self.is_leaf = node.is_leaf
@@ -181,6 +188,7 @@ class Node:
 
     @state.setter
     def state(self, state: State) -> None:
+        print(f"Changing state of {self} from {self.state} to {state}")
         assert self.is_leaf
         self._state = state
         if self.block is None:
@@ -210,14 +218,33 @@ class Node:
             return [(self.parent.discriminator, self.parent_value), *self.parent.signature]
 
     @property
+    def block(self) -> Optional[Node]:
+        return self._block
+
+    @block.setter
+    def block(self, block: Optional[Node]) -> None:
+        print(f"Changing block of {self} from {self.block} to {block}")
+        self._block = block
+
+    @property
     def incoming_non_tree(self) -> set[Transition]:
         return self._incoming_non_tree
 
     @incoming_non_tree.setter
     def incoming_non_tree(self, inc: set[Transition]) -> set[Transition]:
-        for t in inc:
+        for t in list(inc):
             t.target_node = self
         return self._incoming_non_tree
+
+    @property
+    def incoming_tree(self) -> set[Transition]:
+        return self._incoming_tree
+
+    @incoming_tree.setter
+    def incoming_tree(self, inc: set[Transition]) -> set[Transition]:
+        for t in list(inc):
+            t.target_node = self
+        return self._incoming_tree
 
     def link(self, state: State) -> None:
         self.state = state

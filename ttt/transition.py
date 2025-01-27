@@ -49,8 +49,13 @@ class Transition:
     def target_node(self, tgt: Node):
         # TODO: had to remove since make_tree() doesnt set target node
         # assert not self.is_tree
-        self.target_node.incoming_non_tree.remove(self)
-        tgt.incoming_non_tree.add(self)
+        print(f"Changing target node for transition with aseq {self.aseq} from {self.target_node} to {tgt}")
+        if self.is_tree:
+            self.target_node.incoming_tree.remove(self)
+            tgt.incoming_tree.add(self)
+        else:
+            self.target_node.incoming_non_tree.remove(self)
+            tgt.incoming_non_tree.add(self)
         self._target_node = tgt
 
     @property
@@ -72,6 +77,10 @@ class Transition:
         node.link(state)
         self.target_node = node
         self.target_state = state  # sets is_tree = True
+
+        # update incoming transition sets
+        self.target_node.incoming_non_tree.remove(self)
+        self.target_node.incoming_tree.add(self)
 
         # if the node corresponding to this state is in the 1 subtree of the root,
         # it should be final

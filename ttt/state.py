@@ -150,10 +150,13 @@ class State:
         self.hypothesis = hypothesis
         self.transitions = {}
         self.aseq = aseq
+        self.node = None  # type: ignore
 
     def __repr__(self) -> str:
-        assert self.node
-        return f"q{self.id}"
+        if self.node:
+            return f"q{self.id}"
+        else:
+            return f"State<q{self.id}, uninitialised node>"
 
 
 

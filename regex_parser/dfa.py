@@ -269,6 +269,65 @@ class NFA(Automaton[int, dict[str, set[int]]]):
         dot.render(filename, cleanup=True)
         print(f"NFA visualized and saved as {filename}.{format}")
 
+    @classmethod
+    def from_string(cls, s: str) -> NFA:
+        """
+        Parses an NFA from a string in the form
+
+        States: 0 1 2 3 4
+        Initial: 0
+        Final: 0 2 3
+        Transitions:
+        0 a 1
+        0 b 2
+        0 a 3
+        2 b 4
+        3 a 4
+        1 a 2
+        2 a 3
+        """
+        nfa = NFA()
+
+        lines = s.splitlines()
+
+        # States
+        curr = lines.pop(0)
+        print(curr)
+        expected_prefix = "States: "
+        assert curr.startswith(expected_prefix)
+        states = curr[len(expected_prefix):].strip().split(" ")
+        nfa.states = set(map(int, states))
+
+        nfa.next_state = max(nfa.states) + 1
+
+        # Initial state
+        curr = lines.pop(0)
+        print(curr)
+        expected_prefix = "Initial: "
+        assert curr.startswith(expected_prefix)
+        initial = curr[len(expected_prefix):].strip()
+        nfa.start = int(initial)
+
+        # Final states
+        curr = lines.pop(0)
+        print(curr)
+        expected_prefix = "Final: "
+        assert curr.startswith(expected_prefix)
+        final_states = curr[len(expected_prefix):].strip().split(" ")
+        nfa.final = set(map(int, final_states))
+
+        # Transitions
+        lines.pop(0)
+        nfa.transitions = defaultdict(lambda: defaultdict(set))
+        for curr in lines:
+            print(curr)
+            tokens = curr.strip().split(" ")
+            assert len(tokens) == 3
+            start, char, end = tokens
+            nfa.transitions[int(start)][char].add(int(end))
+
+        return nfa
+
 
 class DFA(Automaton[int, dict[str, int]]):
     next_state: int

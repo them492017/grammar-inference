@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "ttt.ttt",
+            "args": ["(((a|ε))(((a|ε))a))"],
+            "console": "integratedTerminal"
+        }
+    ]
+}
