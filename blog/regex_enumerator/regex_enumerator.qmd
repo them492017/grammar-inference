@@ -1,0 +1,147 @@
+---
+title: "Enumerating regular expressions"
+author: "Martin Ong"
+date: "2025-24-1"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: false
+    code-tools: true
+    code-line-numbers: true
+    number-sections: true
+---
+
+```{python}
+from __future__ import annotations
+from collections import defaultdict, deque
+from typing import Generic, Literal, Protocol, Self, TypeVar
+from itertools import chain, combinations, product
+from copy import deepcopy
+
+
+EMPTYSET = "\u2205"
+EPSILON = "\u03b5"
+
+ALPHABET = "ab"
+EXTENDED_ALPHABET = f"ab{EPSILON}"
+T = TypeVar("T")
+S = TypeVar("S")
+```
+
+# Regular expressions
+In this post we will consider a recursive definition of regular expressions, as opposed
+to the more general definition used in programming languages such as Perl.
+
+We define a regular expression over an alphabet (a set of allowed characters)
+$\Sigma$ as follows.
+
+1. $\emptyset$ and $\varepsilon$ are regular expressions
+2. $a$ is a regular expression for all $a$ in the alphabet
+3. If $R_1, R_2$ are regular expressions, then $(R_1 | R_2)$ is a regular expression
+4. If $R_1, R_2$ are regular expressions, then $(R_1 R_2)$ is a regular expression
+5. If $R$ is a regular expression, then $R^{\*}$ is a regular expression
+
+Semantically, we evaluate regular expressions as follows.
+1. $\emptyset$ matches nothing, and $\varepsilon$ matches only an empty string
+2. $a$ matches only the string containing the single character $a$
+3. $(R_1 | R_2)$ matches any string that either is matched by $R_1$ or is matched by $R_2$
+4. $(R_1 R_2)$ matches any string that can be split in two in such a way that the first
+    segment is matched by $R_1$ and the second is matched by $R_2$
+5. $R^{\*}$ matches any string that can be split into 0 or more segments which are
+   all matched by $R$. Note that this includes the empty string
+
+We will use the following classes to represent a regular expression.
+```{python}
+class Regex:
+    name: str
+    regex: list
+
+    def __repr__(self) -> str:
+        ...
+
+class Empty(Regex):
+    def __init__(self) -> None:
+        self.regex = []
+        self.name = "Empty"
+
+    def __repr__(self) -> str:
+        return "Empty()"
+
+class Epsilon(Regex):
+    def __init__(self) -> None:
+        self.regex = []
+        self.name = "Epsilon"
+
+    def __repr__(self) -> str:
+        return "Epsilon()"
+
+class Char(Regex):
+    def __init__(self, char: str) -> None:
+        assert len(char) == 1
+        assert char in ALPHABET
+        self.char = char
+
+    def __repr__(self) -> str:
+        return f"Char({self.char})"
+
+class Union(Regex):
+    def __init__(self, r1: Regex, r2: Regex) -> None:
+        self.r1 = r1
+        self.r2 = r2
+        self.regex = [self.r1, self.r2]
+        self.name = "Union"
+
+    def __repr__(self) -> str:
+        return f"Union({self.r1, self.r2})"
+
+class Concat(Regex):
+    def __init__(self, r1: Regex, r2: Regex) -> None:
+        self.r1 = r1
+        self.r2 = r2
+        self.regex = [self.r1, self.r2]
+        self.name = "Concat"
+
+    def __repr__(self) -> str:
+        return f"Concat({self.r1, self.r2})"
+
+class Star(Regex):
+    def __init__(self, r: Regex) -> None:
+        self.r = r
+
+    def __repr__(self) -> str:
+        return f"Star({self.r})"
+```
+
+# Enumerations
+An inifinite collection of objects can be enumerated by a process which when
+run will repeatedly generate unique objects from the collection. According to this
+definition of an enumeration, any object in the collection will eventually be generated
+in a finite time.
+
+In particular, the collection of all regular expressions is an inifite collection,
+so naturally one might ask how we can enumerate all regular expressions.
+
+## A trivial enumeration
+One of the simplest collections to enumerate in computer science is the set of
+all strings over an alphabet, often denoted $\Sigma^{*}$, where $\Sigma$ is 
+the alphabet.
+
+The set of all strings can be enumerated by first generating the empty string,
+then all strings of length one, and then all strings of length two, and so on.
+
+Clearly, any fixed string will have finite length, so eventually it will be generated 
+by such a process.
+
+### Adapting for regex 
+Now, one might notice that all regular expressions are strings over the alphabet
+$$\Sigma \cup \{ (, ), |, *, \varepsilon \}.$$
+
+Hence, since we already know how to enumerate the set of all strings over this alphabet,
+we will also be able to enumerate all regex by simply enumerating through all strings
+and filtering out all strings which aren't valid regular expressions.
+
+### Issues with this approach
+This approach, while simple, does not work out well in practice. Clearly, a large
+number of strings generated will not be valid regular expressions. Additionally,
+it is non-trivial to validate that a generated string
