@@ -114,12 +114,12 @@ class Star(Regex):
 ```
 
 # Enumerations
-An inifinite collection of objects can be enumerated by a process which when
+An infinite collection of objects can be enumerated by a process which when
 run will repeatedly generate unique objects from the collection. According to this
 definition of an enumeration, any object in the collection will eventually be generated
 in a finite time.
 
-In particular, the collection of all regular expressions is an inifite collection,
+In particular, the collection of all regular expressions is an infinite collection,
 so naturally one might ask how we can enumerate all regular expressions.
 
 ## A trivial enumeration
@@ -144,4 +144,119 @@ and filtering out all strings which aren't valid regular expressions.
 ### Issues with this approach
 This approach, while simple, does not work out well in practice. Clearly, a large
 number of strings generated will not be valid regular expressions. Additionally,
-it is non-trivial to validate that a generated string
+it is non-trivial to validate that a generated string is or is not a valid
+regular expression, which further decreases efficiency.
+
+# Context Free Grammars for Regular Expressions
+One might suspect that the language regular expressions can be recognised by
+some context free grammar. In particular, regular expressions contain matching
+parentheses, with specific types of subexpressions allowed within each pair of
+parentheses, strongly hinting the context free nature of the language.
+
+Before we try to construct a context free grammar which recognises all valid regular
+expressions, it is worth restricting the set of regular expressions we want to match.
+
+Clearly, many regular expressions are equivalent, for example, $$a | b \cong b | a.$$
+
+Additionally, there are infinietly many ways of writing a regular expression
+which recognises every string, for example
+$$\Sigma^*, \Sigma^* a, \Sigma^* b, \Sigma^& aa, \dots$$.
+
+Thus, we will consider a normal form of regular expression.
+
+Consider the following context free grammar. For brevity we will let '+' denote
+the regex union operation, and '|' denote that there are multiple productions
+from a single variable in the grammar.
+
+====
+S → Q | A | T | C | K
+Q → (A + ε) | (T + ε) | (C + ε)
+A → (T + AT) | (C + AC) | (K + AK)
+AT → T | (T + AT) | AC
+AC → C | (C + AC) | AK
+AK → K | (K + AK)
+T → a1 | a2 | · · · | ak
+C → (C0 C0) | (C0 C)
+C0 → Q | A | T | K
+K → A∗ | T∗ | C∗
+====
+
+We can express this in python as follows:
+```{python}
+S = "<S>"
+Q = "<Q>"
+A = "<A>"
+AT = "<AT>"
+AC = "<AC>"
+AK = "<AK>"
+T = "<T>"
+C = "<C>"
+C0 = "<C0>"
+K = "<K>"
+EPSILON = "\u03b5"
+
+def make_cfg(alphabet: str) -> dict[str, list[list[str]]]:
+    return {
+        S: [[Q], [A], [T], [C], [K]],
+        Q: [["(", A, "|", EPSILON, ")"], ["(", T, "|", EPSILON, ")"], ["(", C, "|", EPSILON, ")"]],
+        A: [["(", T, "|", AT, ")"], ["(", C, "|", AC, ")"], ["(", K, "|", AK, ")"]],
+        AT: [[T], ["(", T, "|", AT, ")"], [AC]],
+        AC: [[C], ["(", C, "|", AC, ")"], [AK]],
+        AK: [[K], [K, "|", AK]],
+        T: [[c] for c in alphabet],
+        C: [["(", C0, C0, ")"], ["(", C0, C, ")"]],
+        C0: [[Q], [A], [T], [K]],
+        K: [["(", A, "*", ")"], ["(", T, "*", ")"], ["(", C, "*", ")"]]
+    }
+
+```
+
+Explanation:
+- S -> start
+- Q -> possibly empty productions
+- T -> terminals
+- C -> concatenations
+    - C ->\* C0 C0 ... C0 (any amount of C0)
+    - C0 can be anything
+- A -> unions
+- K -> kleene stars (can be empty so no need for Q)
+- AT/AC/AK -> T/C/K for RHS of union
+
+## Enumerating productions of a CFG
+We can enumerate all the strings produced by a Context Free Grammar by essentially
+enumerating through all leftmost derivations of length k in increasing order, in the same way that
+we could enumerate through all strings by generating all strings of length k in
+increasing order of k.
+
+To do this, we maintain a queue, initially containing only the start state.
+
+Then, on each iteration, we pop the first element in the queue, and find the
+leftmost variable in the string of variables and terminals.
+
+Then, we produce all possible strings that can be obtained by performing a single
+production rule on that variable. If any of these strings contain no variables,
+we say we generate that string. Otherwise, we push all strings containing at
+least one variable to the back of the queue and repeat the process.
+
+This can be implemented in python as follows:
+```{python}
+def generate(alphabet: str) -> Generator[str, None, None]:
+    cfg = make_cfg(alphabet)
+    queue: Deque[list[str]] = Deque()
+    queue.append(["<S>"])
+
+    while True:
+        curr = queue.popleft()
+
+        for i, symbol in enumerate(curr):
+            if len(symbol) > 1:  # symbol is a variable
+                queue.extend(
+                    [
+                        curr[:i] + production + curr[i + 1 :]
+                        for production in cfg[symbol]
+                    ]
+                )
+                break
+        else:
+            yield "".join(curr)
+```

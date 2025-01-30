@@ -248,6 +248,9 @@ class Node:
 
     def link(self, state: State) -> None:
         self.state = state
+        # if state.node:
+        #     self.incoming_non_tree |= state.node.incoming_non_tree
+        #     self.incoming_tree |= state.node.incoming_tree
         state.node = self
 
     def split_leaf(self, discriminator: str) -> tuple[Node, Node]:

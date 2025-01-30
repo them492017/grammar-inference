@@ -1,14 +1,14 @@
 """
 S → Q | A | T | C | K
-Q → A + ε | T + ε | C + ε
-A → T + AT | C + AC | K + AK
-AT → T | T + AT | AC
-AC → C | C + AC | AK
-AK → K | K + AK
+Q → (A + ε) | (T + ε) | (C + ε)
+A → (T + AT) | (C + AC) | (K + AK)
+AT → T | (T + AT) | AC
+AC → C | (C + AC) | AK
+AK → K | (K + AK)
 T → a1 | a2 | · · · | ak
-C → C0 C0 | C0 C
-C0 → (Q) | (A) | T | K
-K → (A) ∗ | T ∗ | (C) ∗
+C → (C0 C0) | (C0 C)
+C0 → Q | A | T | K
+K → A∗ | T∗ | C∗
 """
 S = "<S>"
 Q = "<Q>"

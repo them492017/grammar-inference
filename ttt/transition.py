@@ -43,6 +43,12 @@ class Transition:
     
     @property
     def target_node(self) -> Node:
+        if self._target_state:
+            print(self._target_state)
+            print(self._target_node)
+            print(self._target_state.node)
+            return self._target_state.node
+            # assert self._target_state.node == self._target_node
         return self._target_node
 
     @target_node.setter
@@ -51,7 +57,8 @@ class Transition:
         # assert not self.is_tree
         print(f"Changing target node for transition with aseq {self.aseq} from {self.target_node} to {tgt}")
         if self.is_tree:
-            self.target_node.incoming_tree.remove(self)
+            if self in self.target_node.incoming_tree:
+                self.target_node.incoming_tree.remove(self)
             tgt.incoming_tree.add(self)
         else:
             self.target_node.incoming_non_tree.remove(self)
