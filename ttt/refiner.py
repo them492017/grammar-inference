@@ -24,7 +24,7 @@ class Refiner:
         # define prefix mapping
         def prefix_mapping(s: str, i: int) -> str:
             assert 0 <= i <= len(s)
-            return self.hypothesis.run_non_deterministic(s[:i], w, teacher).aseq + s[i:]
+            return self.hypothesis.run_non_deterministic(s[:i], teacher).aseq + s[i:]
 
         # define alpha
         def alpha(i: int) -> bool:

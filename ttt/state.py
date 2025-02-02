@@ -90,7 +90,7 @@ class Hypothesis:
 
         return self.run(s, start=start) in self.final_states
 
-    def run_non_deterministic(self, s: str, discriminator: str, teacher: Teacher, start: Optional[State] = None) -> State:
+    def run_non_deterministic(self, s: str, teacher: Teacher, start: Optional[State] = None) -> State:
         print(f"Running hypothesis: start={start}, remaining str: {s}")
         if start is None:
             start = self.start
@@ -101,16 +101,16 @@ class Hypothesis:
         t = start.transitions[s[0]]
 
         if not t.target_node.is_leaf:
-            new_target = t.target_node.sift(discriminator, teacher)
+            new_target = t.target_node.sift(t.aseq, teacher)
             t.target_node = new_target
 
-        return self.run_non_deterministic(s[1:], discriminator, teacher, t.target_state)
+        return self.run_non_deterministic(s[1:], teacher, t.target_state)
 
     def evaluate_non_deterministic(self, s: str, teacher: Teacher, start: Optional[State] = None):
         if start is None:
             start = self.start
 
-        return self.run_non_deterministic(s, s, teacher, start=start) in self.final_states
+        return self.run_non_deterministic(s, teacher, start=start) in self.final_states
 
     def to_dfa(self) -> DFA:
         dfa = DFA()

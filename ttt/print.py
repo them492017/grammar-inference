@@ -3,8 +3,8 @@ from inspect import currentframe, getframeinfo, signature
 import sys
 
 
-# BASE_DIR = "/Users/martin.ong/Desktop/grammar-inference"
-BASE_DIR = "/home/martin/Desktop/uni/2024/grammar-inference"
+BASE_DIR = "/Users/martin.ong/Desktop/grammar-inference"
+# BASE_DIR = "/home/martin/Desktop/uni/2024/grammar-inference"
 
 
 def to_rel(full_path):
