@@ -39,7 +39,7 @@ class Hypothesis:
             print(f"State: {state} (aseq = '{state.aseq}')")
             for a, transition in state.transitions.items():
                 assert transition.target_state is not None
-                if transition.is_tree:
+                if transition.is_tree():
                     print(f"\t={a}=> {transition.target_state}")
                 else:
                     print(f"\t-{a}-> {transition.target_state}")
@@ -56,7 +56,7 @@ class Hypothesis:
         state = State(self, aseq)
         self.states.add(state)
         state.transitions = {
-            a: Transition(False, self, aseq + a, self.root_node) for a in self.alphabet
+            a: Transition(self, aseq + a, self.root_node) for a in self.alphabet
         }
         for t in state.transitions.values():
             # all trasitions are initially be nontree
@@ -91,7 +91,7 @@ class Hypothesis:
         return self.run(s, start=start) in self.final_states
 
     def run_non_deterministic(self, s: str, discriminator: str, teacher: Teacher, start: Optional[State] = None) -> State:
-        print(start, s)
+        print(f"Running hypothesis: start={start}, remaining str: {s}")
         if start is None:
             start = self.start
 

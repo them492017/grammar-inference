@@ -11,9 +11,6 @@ if TYPE_CHECKING:
     from transition import Transition
 
 
-all_nodes: list[Node] = []
-
-
 class Node:
     is_leaf: bool
     _is_temporary: bool
@@ -23,7 +20,6 @@ class Node:
     _discriminator: Optional[str]
     _block: Optional[Node]
     _incoming_non_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
-    _incoming_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
     depth: int
 
     def __init__(self,
@@ -33,7 +29,6 @@ class Node:
         state: Optional[State] = None,
         discriminator: Optional[str] = None,
     ) -> None:
-        all_nodes.append(self)
         self.is_leaf = is_leaf
         self._is_temporary = discriminator != "" and not self.is_leaf
         print("new node is temporary:", self._is_temporary)
@@ -43,7 +38,6 @@ class Node:
         self._discriminator = discriminator
         self._block = None
         self._incoming_non_tree = set()
-        self._incoming_tree = set()
         self.depth = 0
 
     def replace_with_final(self, node: Node) -> None:
@@ -235,16 +229,6 @@ class Node:
         for t in list(inc):
             t.target_node = self
         return self._incoming_non_tree
-
-    @property
-    def incoming_tree(self) -> set[Transition]:
-        return self._incoming_tree
-
-    @incoming_tree.setter
-    def incoming_tree(self, inc: set[Transition]) -> set[Transition]:
-        for t in list(inc):
-            t.target_node = self
-        return self._incoming_tree
 
     def link(self, state: State) -> None:
         self.state = state
