@@ -210,7 +210,6 @@ class NFA(Automaton[int, dict[str, set[int]]]):
         Deteminises the NFA via a subset construction
         """
         self_without_epsilon = self.remove_epsilon()
-        self_without_epsilon.visualize("no_epsilon")
 
         def powerset(s: set[T]) -> list[tuple[T, ...]]:
             return list(chain.from_iterable(set(combinations(s, r)) for r in range(len(s)+1)))

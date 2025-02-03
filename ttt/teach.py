@@ -1,4 +1,5 @@
 from __future__ import annotations
+from functools import lru_cache
 from typing import Optional, Protocol, Pattern, TYPE_CHECKING
 
 from regex_parser.dfa import DFA
@@ -46,25 +47,38 @@ class SimpleTeacher(Teacher):
     """
     alphabet: str
     regex: Pattern[str]
-    equivalence_query_counter: int
     epsilon: float
     delta: float
+    num_membership: int
+    num_membership_excl_cache: int
+    num_equivalence: int
+    membership_cache: dict[str, bool]
 
     def __init__(self, alphabet: str, pattern: str, epsilon: float = 0.1, delta: float = 0.1, seed: int = 1):
         self.alphabet = alphabet
         self.regex = re.compile(pattern)
-        self.equivalence_query_counter = 0
+        self.num_membership = 0
+        self.num_membership_excl_cache = 0
+        self.num_equivalence = 0
         self.epsilon = epsilon
         self.delta = delta
+
+        self.membership_cache = {}
+
         random.seed(seed)
 
     def is_member(self, s: str) -> bool:
-        return self.regex.fullmatch(s) is not None
+        self.num_membership += 1
+        if s in self.membership_cache:
+            return self.membership_cache[s]
+        else:
+            self.num_membership_excl_cache += 1
+            return self.regex.fullmatch(s) is not None
 
     def is_equivalent(self, hypothesis: Hypothesis, max_length: int = 10) -> tuple[bool, Optional[str]]:
-        self.equivalence_query_counter += 1
+        self.num_equivalence += 1
         num_calls = math.ceil(1.0/self.epsilon * (math.log(1.0/self.delta) +
-                              self.equivalence_query_counter * math.log(2)))
+                              self.num_equivalence * math.log(2)))
 
         for _ in range(num_calls):
             s = self.gen_random(max_length)
