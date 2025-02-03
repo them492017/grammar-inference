@@ -142,7 +142,6 @@ class State:
     node: Node
     transitions: dict[str, Transition]
     aseq: str
-    # incoming_transition: Transition
     
     def __init__(self, hypothesis: Hypothesis, aseq: str) -> None:
         self.id = State.next_id

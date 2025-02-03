@@ -19,7 +19,7 @@ class Node:
     _state: Optional[State]
     _discriminator: Optional[str]
     _block: Optional[Node]
-    _incoming_non_tree: set[Transition]  # TODO: make this a list unless open_Transitions list is changed
+    _incoming_non_tree: set[Transition]
     depth: int
 
     def __init__(self,
@@ -53,9 +53,6 @@ class Node:
         self._state = node._state
         self._discriminator = node._discriminator
         self._incoming_non_tree = node._incoming_non_tree
-
-        # self._parent = node._parent
-        # self.depth = node.depth
 
     # def __repr__(self) -> str:
     #     base = f"Node<d={"~" if self._is_temporary else ""}'{self._discriminator}' state={self._state}"
@@ -270,5 +267,4 @@ class Node:
 
         assert child is not None
 
-        # TODO: double chcek it should point to the block root
         return child.soft_sift(s, teacher)

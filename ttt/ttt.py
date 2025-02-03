@@ -23,9 +23,6 @@ class TTTAlgorithm:
 
     @property
     def blocks(self) -> list[Node]:
-        # print(
-        #     list({(state, state.node.block) for state in self.dtree.states() if state.node.block is not None})
-        # )
         return list({state.node.block for state in self.dtree.states() if state.node.block is not None})
 
     def __init__(self, teacher: Teacher, alphabet: str):
@@ -53,19 +50,6 @@ class TTTAlgorithm:
         self.dtree.print_tree()
         print("=" * 40)
         self.close_transitions_soft()
-
-    # def close_transitions_hard(self) -> None:
-    #     print("=" * 20)
-    #     print("Starting CLOSE_TRANSITIONS_HARD")
-    #     print("=" * 20)
-    #
-    #     for state in self.hypothesis.states:
-    #         for transition in state.transitions.values():
-    #             if not transition.target_node.is_leaf:
-    #                 node = transition.target_node.sift(transition.aseq, self.teacher)
-    #                 transition.target_node = node
-    #
-    #     print("Finished CLOSE_TRANSITIONS_HARD")
 
     def close_transitions_soft(self) -> None:
         print("=" * 20)
@@ -126,7 +110,6 @@ class TTTAlgorithm:
             print(state)
             for transition in state.transitions.values():
                 print(f"\t{transition}, node: {transition.target_node}")
-        # self.hypothesis.print_hypothesis()
         print("=" * 10)
 
     def refine(self, counterexample: str) -> None:
@@ -165,7 +148,6 @@ class TTTAlgorithm:
             print(state)
             for transition in state.transitions.values():
                 print(f"\t{transition}, node: {transition.target_node}")
-        # self.hypothesis.print_hypothesis()
         print("=" * 10)
 
     def has_non_trivial_blocks(self) -> bool:
@@ -196,8 +178,6 @@ class TTTAlgorithm:
         print("Finding non_trivial inconsistency")
         self.dtree.print_tree()
         print(self.blocks)
-        # for state in self.hypothesis.states:
-        #     print(state, state.node, state.node.block)
         for block in self.blocks:
             if not block.is_leaf:  # |B| > 1
                 for state in block.states():
@@ -213,15 +193,6 @@ class TTTAlgorithm:
         print("=" * 20)
         print("Starting REPLACE_BLOCKROOT with new discriminator", discriminator)
         print("Block:")
-
-        # if root.discriminator == discriminator:
-        #     # skip replacing and just make node final
-        #     root._is_temporary = False  # TODO: replace with setter
-        #     for child in root.children:
-        #         if child is not None:
-        #             for node in child:
-        #                 node.block = child
-        #     return
 
         root.print_tree()
         self.hypothesis.print_hypothesis_transitions()
