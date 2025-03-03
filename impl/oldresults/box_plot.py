@@ -2,10 +2,12 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+column = "equivalence_queries"
+
 # Create a DataFrame for Seaborn
 files: dict[str, str] = {
-    "ttt": "ttt_test.csv",
-    "observation_pack": "observation_pack_test.csv",
+    "ttt": "ttt_matching_results.csv",
+    "l_star": "l_star_results.csv",
 }
 
 dfs = []
@@ -19,12 +21,12 @@ df = pd.concat(dfs, ignore_index=True)
 
 # Create the Seaborn box plot
 plt.figure(figsize=(8, 5))
-sns.violinplot(x="algorithm", y="unique_membership_queries", data=df)
+sns.violinplot(x="algorithm", y=column, data=df)
 
 # Labels
 plt.title("Comparison of Algorithm Performance")
-plt.ylabel("Unique membership queries")
+plt.ylabel(f"Unique {column}")
 
 # Show the plot
 # plt.show()
-plt.savefig("membership_query_box_plot.png")
+plt.savefig(f"{column}_box_plot.png")

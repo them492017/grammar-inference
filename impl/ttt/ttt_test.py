@@ -7,6 +7,9 @@ from ttt.ttt import TTTAlgorithm
 from functools import lru_cache
 
 
+alphabet = "ab"
+
+
 @lru_cache(maxsize=512)
 def learn_pattern(pattern: str, file: TextIO) -> None:
     print(f"Learning [{pattern}] over alphabet [{alphabet}]")
@@ -70,7 +73,6 @@ def learn_pattern_with_stats_without_dfa_check(pattern: str, file: TextIO) -> No
 
 
 if __name__ == "__main__":
-    alphabet = "ab"
     file = open("ttt_random_test_no_check.csv", "w")
 
     print("pattern,unique_membership_queries,membership_queries,equivalence_queries,success", file=file)

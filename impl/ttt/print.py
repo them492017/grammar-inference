@@ -21,8 +21,9 @@ def special_print(func):
     return wrapped_func
 
 
-print = special_print(print)
+# print = special_print(print)
 # print = print
+print = lambda *args, **kwargs: None
 
 
 def is_user_defined(frame):

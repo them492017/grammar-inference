@@ -343,6 +343,14 @@ class DFA(Automaton[int, dict[str, int]]):
         self.transitions[self.next_state] = transitions
         self.next_state += 1
 
+    def close_with_sink(self, alphabet: list[str]) -> None:
+        sink = self.next_state
+        self.add_state({ a: sink for a in alphabet })
+        for state in self.states:
+            missing_transitions = set(alphabet) - set(self.transitions[state].keys())
+            for a in missing_transitions:
+                self.transitions[state][a] = sink
+
     def evaluate(self, s: str) -> bool:
         curr = self.start
         for c in s:
