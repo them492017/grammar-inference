@@ -127,7 +127,7 @@ class Hypothesis:
                 assert transition.target_state  # otherwise not a DFA
                 dfa.transitions[d_state][a] = transition.target_state.id
 
-        # TODO: do I need to deal with empty transitions?
+        dfa.close_with_sink(self.alphabet)
 
         return dfa
 

@@ -3,6 +3,7 @@ from collections import defaultdict, deque
 from typing import Generic, Literal, Protocol, Self, TypeVar, Union
 from itertools import chain, combinations, product
 from copy import deepcopy
+from pprint import pprint
 
 from graphviz import Digraph
 
@@ -133,14 +134,12 @@ class NFA(Automaton[int, dict[str, set[int]]]):
         nfa.next_state = self.next_state
 
         for state in self.states:
-            print(f"On state {state}")
             seen: set[int] = set()
             final = [False]
             # dfs to get all states reachable by exactly one non-epsilon transition
             def helper(curr: int) -> None:
                 if curr not in seen:
                     seen.add(curr)
-                    print(f"\tCurr state {curr} is final: {curr in self.final}")
                     if curr in self.final:
                         final[0] = True
                     for a, targets in self.transitions[curr].items():
@@ -198,7 +197,6 @@ class NFA(Automaton[int, dict[str, set[int]]]):
                         for target_set in self.transitions[state].values():
                             if target_state in target_set:
                                 reached = True
-                                print(f"{target_state} can be reached by {state}")
                                 break
                 if not reached:
                     self.states -= {target_state}
@@ -227,7 +225,6 @@ class NFA(Automaton[int, dict[str, set[int]]]):
         for state, subset in enumerate(subsets):
             for a in ALPHABET:
                 result = set().union(*(self_without_epsilon.transitions[s].get(a, set()) for s in subset))
-                print(f"{subsets[state]} --{a}-> {subsets[subsets.index(tuple(sorted(result)))]}")
                 dfa.transitions[state][a] = subsets.index(
                     tuple(sorted(result))
                 )
@@ -291,7 +288,6 @@ class NFA(Automaton[int, dict[str, set[int]]]):
 
         # States
         curr = lines.pop(0)
-        print(curr)
         expected_prefix = "States: "
         assert curr.startswith(expected_prefix)
         states = curr[len(expected_prefix):].strip().split(" ")
@@ -485,7 +481,6 @@ class DFA(Automaton[int, dict[str, int]]):
                         for target in self.transitions[state].values():
                             if target_state == target:
                                 reached = True
-                                print(f"{target_state} can be reached by {state}")
                                 break
                 if not reached:
                     self.states -= {target_state}
@@ -493,6 +488,48 @@ class DFA(Automaton[int, dict[str, int]]):
                     unchanged = False
 
         return self
+
+    def trim_sinks(self) -> DFA:
+        dfa = deepcopy(self)
+
+        can_reach_final: set[int] = dfa.final.copy()  # set of nodes that can reach a final state
+
+        changed: bool = True
+        while changed:
+            changed = False
+            for state in dfa.states - can_reach_final:
+                for target in dfa.transitions[state].values():
+                    if target in can_reach_final:
+                        can_reach_final.add(state)
+                        changed = True
+        
+        # delete all states and transitions which cannot reach a final state
+        for state in dfa.states - can_reach_final:
+            del dfa.transitions[state]
+        for state, transitions in dfa.transitions.items():
+            for a, target in list(transitions.items()):
+                if target not in can_reach_final:
+                    del transitions[a]
+        dfa.states = can_reach_final
+
+        return dfa
+
+    def to_grammar(self) -> tuple[dict[str, list[list[str]]], str]:
+        trimmed_dfa = self.trim_sinks()
+
+        def state_id(state: int) -> str:
+            return f"<{state}>"
+        grammar = defaultdict(list)
+        start = state_id(trimmed_dfa.start)
+        
+        for state, transitions in trimmed_dfa.transitions.items():
+            for a, target_state in transitions.items():
+                grammar[state_id(state)].append([a, state_id(target_state)])
+        
+        for state in trimmed_dfa.final:
+            grammar[state_id(state)].append([])
+
+        return grammar, start
 
     def visualize(self, filename: str = 'dfa', format: str = 'png') -> Self:
         """

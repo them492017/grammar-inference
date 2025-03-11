@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import random
-import re
 import math
 from typing import Optional, TYPE_CHECKING
 
+import regex  # wrapper for rust regex crate
 from teacher.stat_teacher import StatTeacher
 
 if TYPE_CHECKING:
@@ -27,7 +27,7 @@ class SimpleTeacher(StatTeacher):
 
     def __init__(self, alphabet: str, pattern: str, epsilon: float = 0.1, delta: float = 0.1, seed: int = 1):
         self.alphabet = alphabet
-        self.regex = re.compile(pattern)
+        self.regex = regex.Regex(f"^{pattern}$")
         self.equivalence_query_counter = 0
         self.epsilon = epsilon
         self.delta = delta
@@ -45,7 +45,7 @@ class SimpleTeacher(StatTeacher):
             return self.membership_cache[s]
         else:
             self.num_membership_excl_cache += 1
-            return self.regex.fullmatch(s) is not None
+            return self.regex.is_match(s)
 
     def is_equivalent(self, hypothesis: DFA, max_length: int = 10) -> tuple[bool, Optional[str]]:
         self.num_equivalence += 1

@@ -8,6 +8,7 @@ import random
 import string
 import re
 import sys
+from pprint import pprint
 
 from regex_parser.dfa import DFA
 from ttt.state import Hypothesis
@@ -15,6 +16,7 @@ from ttt.node import Node
 from teacher.base_teacher import Teacher
 from teacher.simple_teacher import SimpleTeacher
 from lstar.teach import convert_grammar_to_dfa
+from results.f1 import compute_f1
 
 class ObservationTable:
     def __init__(self, alphabet):
@@ -55,54 +57,6 @@ class ObservationTable:
                 grammar[sid1].append([a, sid2])
 
         return grammar, start_nt
-
-    def table_to_hypothesis(self) -> Hypothesis:
-        """
-        Converts an observation table into a DFA hypothesis.
-        """
-        # Identify all states
-        prefix_to_state = {}  # Mapping from row prefix to State object
-        states = {}  # Mapping from state ID to its prefixes
-
-        for p in self.P:
-            state_id = self.state(p)  # Unique state representation
-            if state_id not in states:
-                states[state_id] = []
-            states[state_id].append(p)
-            prefix_to_state[p] = state_id
-
-        # Create the root node and initialize the hypothesis
-        root_node = Node.make_leaf()  # Assuming a Node class exists
-        hypothesis = Hypothesis(root_node, self.A)
-
-        # Create DFA states
-        state_objects = {}  # state_id -> State
-        for state_id in states:
-            state_objects[state_id] = hypothesis.add_state(state_id)
-
-        # Identify start state
-        hypothesis.start = state_objects[prefix_to_state[""]]
-
-        # Identify final states
-        for p in self.P:
-            if self.cell(p, '') == 1:
-                hypothesis.final_states.add(state_objects[prefix_to_state[p]])
-
-        # Create transitions
-        for state_id in states:
-            first_prefix = states[state_id][0]
-            current_state = state_objects[state_id]
-
-            for a in self.A:
-                next_prefix = first_prefix + a
-                next_state_id = self.state(next_prefix)
-                if next_state_id in state_objects:
-                    next_state = state_objects[next_state_id]
-                    hypothesis.add_transition(current_state, a, next_state)
-                else:
-                    raise ValueError("Transition is open")
-
-        return hypothesis
 
     def table_to_dfa(self) -> DFA:
         """
@@ -247,4 +201,5 @@ if __name__ == '__main__':
     teacher = SimpleTeacher(alphabet, expr)
     tbl = ObservationTable(list(alphabet))
     dfa = l_star(tbl, teacher)
-    print(dfa)
+    pprint(dfa.transitions)
+    print(compute_f1(dfa, teacher, alphabet))

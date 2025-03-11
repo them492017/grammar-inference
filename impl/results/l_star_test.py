@@ -20,4 +20,4 @@ class LStarAlgorithm(InferenceAlgorithm):
 
 if __name__ == "__main__":
     alg = LStarAlgorithm("ab")
-    in_order_test(alg, f"{OUTPUT_DIR}/l_star.csv")
+    in_order_test(alg, f"{OUTPUT_DIR}/l_star_fuzzing_test.csv")

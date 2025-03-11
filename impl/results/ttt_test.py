@@ -21,5 +21,5 @@ class TTTAlgorithm1(InferenceAlgorithm):
 
 if __name__ == "__main__":
     alg = TTTAlgorithm1("ab")
-    in_order_test(alg, f"{OUTPUT_DIR}/ttt.csv")
+    in_order_test(alg, f"{OUTPUT_DIR}/ttt_fuzzing_test.csv")
 

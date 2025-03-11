@@ -5,7 +5,8 @@ from teacher.simple_teacher import SimpleTeacher
 from teacher.stat_teacher import StatTeacher
 from regex_parser.dfa import DFA
 from regex_enumerator.generate import generate
-from results.f1 import compute_f1
+from results.f1 import compute_f1_with_fuzzed_strings
+from results.convert_regex import convert_epsilon_regex
 
 
 OUTPUT_DIR = "results/output/"
@@ -22,8 +23,8 @@ class InferenceAlgorithm:
 @lru_cache(maxsize=512)
 def learn_pattern_with_stats(algorithm: InferenceAlgorithm, pattern: str, file: TextIO) -> None:
     print(f"Learning [{pattern}] over alphabet [{algorithm.alphabet()}]")
-
-    teacher = SimpleTeacher(algorithm.alphabet(), pattern)
+    standard_pattern = convert_epsilon_regex(pattern)
+    teacher = SimpleTeacher(algorithm.alphabet(), standard_pattern)
     try:
         dfa = algorithm.learn(teacher)
     except AssertionError as e:
@@ -32,7 +33,7 @@ def learn_pattern_with_stats(algorithm: InferenceAlgorithm, pattern: str, file: 
         print(pattern)
         raise e
     num_membership_excl_cache, num_membership, num_equivalence = (teacher.num_membership_excl_cache, teacher.num_membership, teacher.num_equivalence)
-    precision, recall, f1 = compute_f1(dfa, teacher, algorithm.alphabet())
+    precision, recall, f1 = compute_f1_with_fuzzed_strings(dfa, pattern, algorithm.alphabet())
     print(f"{pattern},{num_membership_excl_cache},{num_membership},{num_equivalence},{precision},{recall},{f1}", file=file)
 
 
