@@ -25,4 +25,3 @@
     - Discrimination tree algorithms have more membership queries but less equivalence queries
 - TTT is significantly more complicated to implement than other algorithms but uses less equivalence queries
 # Acknowledgements
-- self explanatory
